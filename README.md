@@ -242,6 +242,18 @@ cargo build --release
 cargo test --workspace
 ```
 
+Cross-compiling the Windows build on Linux works with MinGW and a shared FFmpeg build for Windows (for example `ffmpeg-n9.0-latest-win64-lgpl-shared-9.0.zip` from BtbN/FFmpeg-Builds, unpacked to `~/ffmpeg-win`):
+
+```bash
+rustup target add x86_64-pc-windows-gnu
+export FFMPEG_DIR=~/ffmpeg-win
+export BINDGEN_EXTRA_CLANG_ARGS_x86_64_pc_windows_gnu="--target=x86_64-w64-mingw32 --sysroot=/usr/x86_64-w64-mingw32 -I/usr/x86_64-w64-mingw32/include -D__X86INTRIN_H -D__IMMINTRIN_H"
+export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc
+cargo build --release --target x86_64-pc-windows-gnu
+```
+
+Put `avcodec`, `avformat`, `avutil`, `swscale` and `swresample` from the FFmpeg `bin` folder next to the three executables.
+
 Checks used in CI:
 
 ```bash
