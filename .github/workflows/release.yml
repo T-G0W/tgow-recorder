@@ -141,6 +141,8 @@ jobs:
   launcher:
     if: github.ref_type == 'tag'
     needs: publish
+    permissions:
+      contents: write
     uses: T-G0W/tgow-launcher/.github/workflows/tgow-release.yml@f626a5eb473098925589d2f8321b6ce9dec2409a
     with:
       app: tgow-recorder
