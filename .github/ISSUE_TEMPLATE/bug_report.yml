@@ -1,0 +1,61 @@
+name: Bug report
+description: Something in TGOW Recorder does not work as expected
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! English or German is fine.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the problem as clearly as you can.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the overlay with Alt+Z
+        2. Click ...
+        3. ...
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect instead?
+  - type: input
+    id: version
+    attributes:
+      label: TGOW Recorder version
+      description: Shown in the overlay under Settings › Application info.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: system
+    attributes:
+      label: System
+      options:
+        - Windows 11
+        - Windows 10
+        - Linux, Wayland (KDE)
+        - Linux, Wayland (GNOME)
+        - Linux, Wayland (other)
+        - Linux, X11
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: gpu
+    attributes:
+      label: Graphics card
+      placeholder: "NVIDIA RTX 4060, AMD RX 7800 XT, Intel Arc ..."
+  - type: textarea
+    id: log
+    attributes:
+      label: Recorder output
+      description: Run `tgow-rec` with the same settings and `-v yes` in a terminal and paste what it prints.
+      render: text

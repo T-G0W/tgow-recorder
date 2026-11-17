@@ -1,0 +1,99 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: never
+
+jobs:
+  build-windows:
+    runs-on: windows-2025
+    defaults:
+      run:
+        shell: bash
+    env:
+      RUSTFLAGS: --remap-path-prefix=${{ github.workspace }}=/src -C target-feature=+crt-static
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - run: |
+          curl -sSL -o ffmpeg.zip "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-win64-lgpl-shared-9.0.zip"
+          unzip -q ffmpeg.zip -d ffmpeg-dl
+          mv ffmpeg-dl/* ffmpeg
+          echo "FFMPEG_DIR=$(cygpath -w "$PWD/ffmpeg")" >> "$GITHUB_ENV"
+          echo "LIBCLANG_PATH=C:\\Program Files\\LLVM\\bin" >> "$GITHUB_ENV"
+      - run: cargo build --release --locked
+      - run: |
+          version="${GITHUB_REF_NAME#v}"
+          mkdir -p stage dist
+          cp target/release/tgow-recorder.exe target/release/tgow-rec.exe target/release/tgow-overlay.exe stage/
+          cp ffmpeg/bin/avcodec-*.dll ffmpeg/bin/avformat-*.dll ffmpeg/bin/avutil-*.dll ffmpeg/bin/swscale-*.dll ffmpeg/bin/swresample-*.dll stage/
+          cp LICENSE-MIT LICENSE-APACHE THIRD-PARTY-LICENSES.txt stage/
+          cp ffmpeg/LICENSE.txt stage/FFMPEG-LICENSE.txt
+          (cd stage && 7z a -tzip "../dist/tgow-recorder-${version}-windows-x64-portable.zip" . > /dev/null)
+          if [ ! -f "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" ]; then choco install innosetup -y --no-progress; fi
+          root="$(cygpath -w "$PWD")"
+          sed -e "s|@VERSION@|${version}|g" -e "s|@ROOT@|${root}|g" -e "s|@STAGE@|${root}\\\\stage|g" -e "s|@OUTDIR@|${root}\\\\dist|g" packaging/windows/tgow-recorder.iss > setup.iss
+          "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" //Q setup.iss
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: windows-x64
+          path: dist/*
+
+  build-linux:
+    runs-on: ubuntu-24.04
+    container: archlinux:latest
+    steps:
+      - run: pacman -Syu --noconfirm --needed base-devel git rust clang ffmpeg pipewire libpulse libx11 libxcb libxkbcommon wayland mesa
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - run: cargo build --release --locked
+        env:
+          RUSTFLAGS: --remap-path-prefix=${{ github.workspace }}=/src
+      - run: |
+          version="${GITHUB_REF_NAME#v}"
+          mkdir -p stage/tgow-recorder dist
+          cp target/release/tgow-recorder target/release/tgow-rec target/release/tgow-overlay stage/tgow-recorder/
+          cp assets/tgow-recorder.svg assets/tgow-recorder.desktop assets/logo-512.png stage/tgow-recorder/
+          cp README.md LICENSE-MIT LICENSE-APACHE THIRD-PARTY-LICENSES.txt stage/tgow-recorder/
+          tar -C stage -czf "dist/tgow-recorder-${version}-linux-x86_64.tar.gz" tgow-recorder
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: linux-x86_64
+          path: dist/*
+
+  publish:
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          path: dist
+          merge-multiple: true
+      - run: gh release create "$GITHUB_REF_NAME" dist/* THIRD-PARTY-LICENSES.txt --title "TGOW Recorder ${GITHUB_REF_NAME#v}" --notes-file CHANGELOG.md --verify-tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  launcher:
+    needs: publish
+    uses: T-G0W/tgow-launcher/.github/workflows/tgow-release.yml@f626a5eb473098925589d2f8321b6ce9dec2409a
+    with:
+      app: tgow-recorder
+      name: TGOW Recorder
+      artifacts: "*"
+      installer: inno
+      launch: tgow-recorder/tgow-recorder
+    secrets:
+      TGOW_SIGNING_KEY: ${{ secrets.TGOW_SIGNING_KEY }}

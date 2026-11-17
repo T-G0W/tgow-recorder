@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=TGOW Recorder
+GenericName=Screen Recorder
+Comment=Record, replay and stream your screen
+Comment[de]=Bildschirm aufnehmen, Replays speichern und streamen
+Exec=tgow-recorder --show
+Icon=tgow-recorder
+Terminal=false
+Categories=AudioVideo;Video;Recorder;
+Keywords=record;replay;stream;screenshot;screen;
+StartupNotify=false
