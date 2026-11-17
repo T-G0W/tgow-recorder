@@ -3,6 +3,7 @@ name: release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -31,6 +32,7 @@ jobs:
       - run: cargo build --release --locked
       - run: |
           version="${GITHUB_REF_NAME#v}"
+          if [ "$GITHUB_REF_TYPE" != tag ]; then version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)-${GITHUB_SHA::7}"; fi
           mkdir -p stage dist
           cp target/release/tgow-recorder.exe target/release/tgow-rec.exe target/release/tgow-overlay.exe stage/
           cp ffmpeg/bin/avcodec-*.dll ffmpeg/bin/avformat-*.dll ffmpeg/bin/avutil-*.dll ffmpeg/bin/swscale-*.dll ffmpeg/bin/swresample-*.dll stage/
@@ -59,6 +61,7 @@ jobs:
           RUSTFLAGS: --remap-path-prefix=${{ github.workspace }}=/src
       - run: |
           version="${GITHUB_REF_NAME#v}"
+          if [ "$GITHUB_REF_TYPE" != tag ]; then version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)-${GITHUB_SHA::7}"; fi
           mkdir -p stage/tgow-recorder dist
           cp target/release/tgow-recorder target/release/tgow-rec target/release/tgow-overlay stage/tgow-recorder/
           cp assets/tgow-recorder.svg assets/tgow-recorder.desktop assets/logo-512.png stage/tgow-recorder/
@@ -70,6 +73,7 @@ jobs:
           path: dist/*
 
   publish:
+    if: github.ref_type == 'tag'
     needs: [build-windows, build-linux]
     runs-on: ubuntu-24.04
     permissions:
@@ -87,6 +91,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 
   launcher:
+    if: github.ref_type == 'tag'
     needs: publish
     uses: T-G0W/tgow-launcher/.github/workflows/tgow-release.yml@f626a5eb473098925589d2f8321b6ce9dec2409a
     with:
