@@ -1,0 +1,25 @@
+pkgname=tgow-recorder
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc="Instant replay, recording, streaming and screenshots with a ShadowPlay-style overlay"
+arch=('x86_64')
+url="https://github.com/T-G0W/tgow-recorder"
+license=('MIT OR Apache-2.0')
+depends=('ffmpeg' 'libpipewire' 'libpulse' 'libx11' 'libxcb' 'libxkbcommon' 'wayland' 'libglvnd' 'gcc-libs' 'glibc')
+optdepends=('xdg-desktop-portal: screen capture and hotkeys on Wayland'
+            'pipewire-pulse: audio capture on PipeWire systems')
+options=('!strip' '!debug')
+
+package() {
+    local stage="${TGOW_STAGE:?}"
+    install -Dm755 "$stage/tgow-recorder" "$pkgdir/usr/bin/tgow-recorder"
+    install -Dm755 "$stage/tgow-rec" "$pkgdir/usr/bin/tgow-rec"
+    install -Dm755 "$stage/tgow-overlay" "$pkgdir/usr/bin/tgow-overlay"
+    install -Dm644 "$stage/tgow-recorder.desktop" "$pkgdir/usr/share/applications/tgow-recorder.desktop"
+    install -Dm644 "$stage/tgow-recorder.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/tgow-recorder.svg"
+    install -Dm644 "$stage/logo-512.png" "$pkgdir/usr/share/icons/hicolor/512x512/apps/tgow-recorder.png"
+    install -Dm644 "$stage/README.md" "$pkgdir/usr/share/doc/tgow-recorder/README.md"
+    install -Dm644 "$stage/LICENSE-MIT" "$pkgdir/usr/share/licenses/tgow-recorder/LICENSE-MIT"
+    install -Dm644 "$stage/LICENSE-APACHE" "$pkgdir/usr/share/licenses/tgow-recorder/LICENSE-APACHE"
+    install -Dm644 "$stage/THIRD-PARTY-LICENSES.txt" "$pkgdir/usr/share/licenses/tgow-recorder/THIRD-PARTY-LICENSES.txt"
+}

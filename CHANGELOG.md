@@ -11,3 +11,4 @@ The first release, for Windows 10 and 11 and for Linux.
 - Game detection for Steam, Proton, Epic, GOG, Xbox and Wine games
 - Keyboard and controller hotkeys, system tray, notifications and autostart
 - English and German
+- Windows setup and portable ZIP, Linux packages for Arch Linux and Ubuntu and an archive with an install script for every other distribution

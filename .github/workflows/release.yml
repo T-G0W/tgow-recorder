@@ -31,24 +31,28 @@ jobs:
           echo "LIBCLANG_PATH=C:\\Program Files\\LLVM\\bin" >> "$GITHUB_ENV"
       - run: cargo build --release --locked
       - run: |
-          version="${GITHUB_REF_NAME#v}"
-          if [ "$GITHUB_REF_TYPE" != tag ]; then version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)-${GITHUB_SHA::7}"; fi
-          mkdir -p stage dist
+          version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)"
+          mkdir -p stage setup portable
           cp target/release/tgow-recorder.exe target/release/tgow-rec.exe target/release/tgow-overlay.exe stage/
           cp ffmpeg/bin/avcodec-*.dll ffmpeg/bin/avformat-*.dll ffmpeg/bin/avutil-*.dll ffmpeg/bin/swscale-*.dll ffmpeg/bin/swresample-*.dll stage/
           cp LICENSE-MIT LICENSE-APACHE THIRD-PARTY-LICENSES.txt stage/
           cp ffmpeg/LICENSE.txt stage/FFMPEG-LICENSE.txt
-          (cd stage && 7z a -tzip "../dist/tgow-recorder-${version}-windows-x64-portable.zip" . > /dev/null)
+          (cd stage && 7z a -tzip "../portable/tgow-recorder-${version}-windows-x64-portable.zip" . > /dev/null)
           if [ ! -f "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" ]; then choco install innosetup -y --no-progress; fi
           root="$(cygpath -w "$PWD")"
-          sed -e "s|@VERSION@|${version}|g" -e "s|@ROOT@|${root}|g" -e "s|@STAGE@|${root}\\\\stage|g" -e "s|@OUTDIR@|${root}\\\\dist|g" packaging/windows/tgow-recorder.iss > setup.iss
+          sed -e "s|@VERSION@|${version}|g" -e "s|@ROOT@|${root}|g" -e "s|@STAGE@|${root}\\\\stage|g" -e "s|@OUTDIR@|${root}\\\\setup|g" packaging/windows/tgow-recorder.iss > setup.iss
           "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" //Q setup.iss
+          ls -l setup portable
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: windows-x64
-          path: dist/*
+          name: launcher-windows-x64
+          path: setup/*
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: portable-windows-x64
+          path: portable/*
 
-  build-linux:
+  build-arch:
     runs-on: ubuntu-24.04
     container: archlinux:latest
     steps:
@@ -60,21 +64,65 @@ jobs:
         env:
           RUSTFLAGS: --remap-path-prefix=${{ github.workspace }}=/src
       - run: |
-          version="${GITHUB_REF_NAME#v}"
-          if [ "$GITHUB_REF_TYPE" != tag ]; then version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)-${GITHUB_SHA::7}"; fi
-          mkdir -p stage/tgow-recorder dist
+          version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)"
+          mkdir -p stage/tgow-recorder archive package
           cp target/release/tgow-recorder target/release/tgow-rec target/release/tgow-overlay stage/tgow-recorder/
           cp assets/tgow-recorder.svg assets/tgow-recorder.desktop assets/logo-512.png stage/tgow-recorder/
           cp README.md LICENSE-MIT LICENSE-APACHE THIRD-PARTY-LICENSES.txt stage/tgow-recorder/
-          tar -C stage -czf "dist/tgow-recorder-${version}-linux-x86_64.tar.gz" tgow-recorder
+          install -m 755 packaging/linux/install.sh stage/tgow-recorder/install.sh
+          tar -C stage -czf "archive/tgow-recorder-${version}-linux-x86_64.tar.gz" tgow-recorder
+          useradd -m builder
+          mkdir -p /pkgbuild/pkg
+          sed "s/@VERSION@/${version}/" packaging/linux/PKGBUILD > /pkgbuild/pkg/PKGBUILD
+          cp -r stage/tgow-recorder /pkgbuild/stage
+          chown -R builder /pkgbuild
+          su builder -c "cd /pkgbuild/pkg && PACKAGER='T-GOW <210194347+T-G0W@users.noreply.github.com>' TGOW_STAGE=/pkgbuild/stage makepkg --nodeps --noconfirm"
+          cp /pkgbuild/pkg/tgow-recorder-*-x86_64.pkg.tar.zst "package/tgow-recorder-${version}-linux-x86_64.pkg.tar.zst"
+          ls -l archive package
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: linux-x86_64
-          path: dist/*
+          name: launcher-linux-x86_64
+          path: archive/*
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: package-linux-x86_64-pacman
+          path: package/*
+
+  build-debian:
+    runs-on: ubuntu-24.04
+    container: ubuntu:24.04
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+      - run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl git build-essential pkg-config clang libclang-dev dpkg-dev \
+            libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libswresample-dev libavdevice-dev libavfilter-dev \
+            libpipewire-0.3-dev libspa-0.2-dev libpulse-dev libx11-dev libxcb1-dev libxcb-shm0-dev libxcb-randr0-dev \
+            libxkbcommon-dev libwayland-dev libegl-dev libgl-dev libdbus-1-dev libudev-dev
+          curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - run: cargo build --release --locked
+        env:
+          RUSTFLAGS: --remap-path-prefix=${{ github.workspace }}=/src
+      - run: |
+          version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)"
+          mkdir -p stage package
+          cp target/release/tgow-recorder target/release/tgow-rec target/release/tgow-overlay stage/
+          cp assets/tgow-recorder.svg assets/tgow-recorder.desktop assets/logo-512.png README.md LICENSE-MIT THIRD-PARTY-LICENSES.txt stage/
+          sh packaging/linux/build-deb.sh "$version" "$PWD/stage" "$PWD/package"
+          dpkg-deb --info package/*.deb
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: package-linux-x86_64-deb
+          path: package/*
 
   publish:
     if: github.ref_type == 'tag'
-    needs: [build-windows, build-linux]
+    needs: [build-windows, build-arch, build-debian]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -97,7 +145,7 @@ jobs:
     with:
       app: tgow-recorder
       name: TGOW Recorder
-      artifacts: "*"
+      artifacts: "launcher-*"
       installer: inno
       launch: tgow-recorder/tgow-recorder
     secrets:

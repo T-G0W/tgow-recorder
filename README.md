@@ -165,9 +165,17 @@ Every screenshot is the real app, captured from a release build.
 
 **Linux**
 
-1. Download **`tgow-recorder-<version>-linux-x86_64.tar.gz`** from the [releases page](https://github.com/T-G0W/tgow-recorder/releases/latest) and unpack it. It needs FFmpeg 9, PipeWire or PulseAudio and, on Wayland, xdg-desktop-portal.
-2. Copy the folder to `~/.local/share/tgow-recorder`, link `tgow-recorder` into `~/.local/bin` and copy `tgow-recorder.desktop` to `~/.local/share/applications` and `tgow-recorder.svg` to `~/.local/share/icons/hicolor/scalable/apps`.
-3. Start **TGOW Recorder** from your app menu. On Wayland the desktop asks once which screen to share and once to confirm the hotkeys.
+Pick the package for your distribution from the [releases page](https://github.com/T-G0W/tgow-recorder/releases/latest):
+
+| Distribution | File | Install |
+| --- | --- | --- |
+| Arch Linux, CachyOS, EndeavourOS, Manjaro | `tgow-recorder-<version>-linux-x86_64.pkg.tar.zst` | `sudo pacman -U tgow-recorder-*.pkg.tar.zst` |
+| Ubuntu 24.04 LTS and systems based on it, such as Linux Mint 22, Pop!_OS 24.04 and Zorin OS 18 | `tgow-recorder-<version>-linux-x86_64.deb` | `sudo apt install ./tgow-recorder-*.deb` |
+| Any other, without root | `tgow-recorder-<version>-linux-x86_64.tar.gz` | unpack it and run `./tgow-recorder/install.sh` |
+
+The archive installs into `~/.local` and brings its own uninstaller: `~/.local/share/tgow-recorder/install.sh --uninstall`. It is built on Arch Linux and needs FFmpeg 9 from your system.
+
+Then start **TGOW Recorder** from your app menu. On Wayland the desktop asks once which screen to share and once to confirm the hotkeys. Screen capture on Wayland needs xdg-desktop-portal, audio needs PipeWire or PulseAudio.
 
 Settings live in `%APPDATA%\T-GOW\tgow-recorder` on Windows and `~/.config/tgow-recorder` on Linux.
 
@@ -263,7 +271,7 @@ cargo xtask check
 cargo xtask licenses --check
 ```
 
-Pushing a tag such as `v0.1.0` builds the Windows setup, the portable ZIP and the Linux archive and publishes the release on GitHub Actions.
+Pushing a tag such as `v0.1.0` builds the Windows setup, the portable ZIP, the Linux archive and the `.deb` and pacman packages and publishes the release on GitHub Actions. Running the release workflow by hand builds the same files as artifacts without publishing anything.
 
 <br>
 
