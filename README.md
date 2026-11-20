@@ -7,7 +7,7 @@
 <p align="center">
   <b>Instant replay, recording, livestreaming and screenshots behind one hotkey; a ShadowPlay-style screen recorder, built in pure Rust.</b><br>
   Hardware encoding on NVIDIA, AMD and Intel, a fullscreen overlay, per-app audio tracks and a replay buffer in RAM or on disk,<br>
-  in three small native programs for Windows and Linux. Free, offline, and yours.
+  in three small native programs for Windows and Linux. Free, private, and yours.
 </p>
 
 <p align="center">
@@ -31,9 +31,9 @@
 <br>
 
 <p align="center">
-  <img src="docs/images/tgow-recorder-main.png" alt="The TGOW Recorder overlay: a top bar with the logo, the title and a close button, three panels for Instant Replay (on, with a green replay icon), Record (not recording) and Livestream (not streaming), and buttons for screenshot, settings and the gallery" width="100%">
+  <img src="docs/images/tgow-recorder-main.png" alt="The TGOW Recorder overlay over a dimmed desktop: a top bar with the logo, the title and a close button, three panels for Instant Replay (on, with a green replay icon and an open menu with Turn off, Save, Save 30 sec and Settings), Record (not recording) and Livestream (not streaming), and buttons for screenshot, settings and the gallery" width="100%">
   <br>
-  <sub>Press Alt+Z in any game or app: replay, record and stream are one click away, the panel turns green while it runs.</sub>
+  <sub>Press Alt+Z in any game or app: the overlay dims what is behind it, and replay, record and stream are one click away. The panel turns green while it runs.</sub>
 </p>
 
 > [!NOTE]
@@ -67,11 +67,11 @@
     </td>
     <td width="25%" valign="top">
       <h3>⚡ The GPU does the work</h3>
-      NVENC, AMF, Quick Sync, VA-API or Vulkan encode H264, HEVC and AV1, also in 10 bit. A multithreaded colour converter keeps a 1080p frame under 2&nbsp;ms on the CPU.
+      NVENC, AMF, Quick Sync, VA-API or Vulkan encode H264, HEVC and AV1, also in 10 bit. Without a usable GPU it falls back to another graphics chip or to the CPU by itself, so a recording never just fails.
     </td>
     <td width="25%" valign="top">
-      <h3>🔊 Every sound on its own track</h3>
-      Mix your speakers, your microphone and single apps freely into several audio tracks, or record everything except Discord. A mute hotkey silences the mic in a second.
+      <h3>🔄 Updates itself</h3>
+      New versions are downloaded from GitHub, checked against their SHA-256 checksum and installed while nothing is being recorded. It never interrupts a replay or a recording.
     </td>
   </tr>
 </table>
@@ -80,39 +80,41 @@
 
 ## Features
 
-Every screenshot is the real app, captured from a release build.
+Every screenshot is the real app, captured from the Windows release build.
 
 <table>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/images/tgow-recorder-replay.png" alt="Instant Replay settings in the advanced view: capture source focused monitor, record cursor, webcam none, audio codec Opus, audio bitrate and two audio tracks with output device, add input device and add application audio" width="100%">
+      <img src="docs/images/tgow-recorder-replay.png" alt="Instant Replay settings in the advanced view: capture source main monitor, record cursor, webcam none, audio codec Opus, audio bitrate 160 and two audio tracks, the first titled Game with the default output, each with add output device, add input device and add application audio" width="100%">
       <br>
-      <sub>Instant Replay in the advanced view, with two audio tracks.</sub>
+      <sub>Instant Replay in the advanced view, with a Game and a Voice audio track.</sub>
       <h3>Instant replay, your way</h3>
       Choose how long the buffer is, whether it lives in RAM or on disk and whether it restarts after saving. Saving never interrupts the buffer, so you can save twice in a row.
       <br><br>
       It can start with the computer, only on mains power, or whenever a game is running, and turn itself off again when the game closes.
+      <br><br>
+      Every sound can go on its own audio track: mix your speakers, your microphone and single apps freely, or record everything except Discord.
     </td>
     <td width="50%" valign="top">
-      <img src="docs/images/tgow-recorder-record.png" alt="Record settings in the simple view: capture source focused monitor, change video resolution, record cursor, audio codec Opus, one audio track with the default output, video quality very high, video codec auto and 60 frames per second" width="100%">
+      <img src="docs/images/tgow-recorder-record.png" alt="Record settings in the simple view: capture source main monitor, change video resolution, record cursor, audio codec Opus, one audio track with the default output, video quality very high, video codec auto and 60 frames per second" width="100%">
       <br>
       <sub>Recording settings in the simple view.</sub>
       <h3>Record whole sessions</h3>
-      Capture a monitor, the monitor under the mouse, a window or a region you draw. Pause and resume, drop chapter markers, split long sessions into files of a fixed length or count down before it starts.
+      Capture your main monitor or any other one, a window or a region you draw. Pause and resume, drop chapter markers, split long sessions into files of a fixed length or count down before it starts.
       <br><br>
       MP4 files are written so they stay playable even if the computer crashes during a recording.
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/images/tgow-recorder-stream.png" alt="Livestream settings: streaming info with the service Twitch, a stream key field and keep a local copy, then capture and audio settings" width="100%">
+      <img src="docs/images/tgow-recorder-stream.png" alt="Livestream settings in the simple view: streaming info with the service Twitch, a stream key field and keep a local copy of the stream, then capture with the main monitor and audio with AAC and the default output" width="100%">
       <br>
       <sub>Go live on Twitch, YouTube, Kick, Rumble, WHIP or any RTMP or SRT server.</sub>
       <h3>Go live in one click</h3>
       Pick a service, paste your stream key and start. Constant bitrate, keyframe interval and codec are set up for streaming, and a custom server takes any RTMP, RTMPS, SRT or WHIP address.
     </td>
     <td width="50%" valign="top">
-      <img src="docs/images/tgow-recorder-screenshot.png" alt="Screenshot settings: capture source, image quality very high, image format PNG, directory ~/Pictures/Screenshots, organize into folders, name after the application, save to clipboard and save to disk" width="100%">
+      <img src="docs/images/tgow-recorder-screenshot.png" alt="Screenshot settings: capture source main monitor, image quality very high, image format PNG, the folder Pictures\Screenshots, organize into folders, name after the application, save to clipboard and save to disk" width="100%">
       <br>
       <sub>Screenshots as PNG or JPG, to disk, to the clipboard or both.</sub>
       <h3>Screenshots without the fuss</h3>
@@ -121,20 +123,29 @@ Every screenshot is the real app, captured from a release build.
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/images/tgow-recorder-settings.png" alt="Global settings: accent color NVIDIA, AMD, Intel or custom, rounded corners, overlay background opacity, startup, system tray icon and keyboard hotkeys with Alt+Z, Alt+Shift+F10 and Alt+F10" width="100%">
+      <img src="docs/images/tgow-recorder-settings.png" alt="Global settings: accent color NVIDIA, AMD, Intel or custom, rounded corners, overlay background opacity 0.45, start on system startup yes, system tray icon, install updates automatically with the installed version, and keyboard hotkeys with Alt+Z and Alt+Shift+F10" width="100%">
       <br>
-      <sub>Accent colour, startup, tray and every hotkey in one place.</sub>
+      <sub>Accent colour, startup, updates and every hotkey in one place.</sub>
       <h3>Looks the way you like</h3>
       Pick the green, red or blue accent of your graphics card or any colour, rounded or square corners and how dark the overlay gets. Every hotkey can be changed, cleared or reset, with a warning when two actions share a key.
       <br><br>
       The interface follows your system language: German on German systems, English everywhere else.
     </td>
     <td width="50%" valign="top">
-      <img src="docs/images/tgow-recorder-gallery.png" alt="The gallery: filters for all, recordings, replays and screenshots, free disk space, and a list of recent videos and screenshots with size and date, each with open, open folder and delete" width="100%">
+      <img src="docs/images/tgow-recorder-gallery.png" alt="The gallery: filters for all, recordings, replays and screenshots, free disk space and a refresh button, and a list of replays from Xonotic and SuperTuxKart, a recording and screenshots with type, date and size, each with open, open folder and delete" width="100%">
       <br>
       <sub>The gallery lists recent clips and screenshots, filtered by type.</sub>
       <h3>Find your clips again</h3>
-      The gallery shows what you recorded last, with size and date, and opens, reveals or deletes it. The free space on the target drive is always in view, and a warning shows up before the drive runs full.
+      The gallery shows what you recorded last, with size and date, and opens, reveals or deletes it. Opening a clip or its folder closes the overlay, so the player or the file manager is right in front of you. The free space on the target drive is always in view, and a warning shows up before the drive runs full.
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" valign="top">
+      <img src="docs/images/tgow-recorder-notification.png" alt="A notification in the top right corner of the screen: the TGOW Recorder name in green, a replay icon and the text Saved a 1 minute replay of Xonotic" width="100%">
+      <br>
+      <sub>Notifications slide in at the top right, like the classic GeForce Experience overlay, and slide out again on their own.</sub>
+      <h3>Notifications that stay out of the way</h3>
+      Saved clips, started recordings and errors show up for a moment in the top right corner, then slide away. They never take the focus from your game, and while the overlay is open they appear inside it instead.
     </td>
   </tr>
 </table>

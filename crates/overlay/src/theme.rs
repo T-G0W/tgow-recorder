@@ -110,7 +110,8 @@ pub fn font(size: f32) -> FontId {
 }
 
 pub fn bold_text(painter: &Painter, pos: Pos2, anchor: Align2, text: &str, size: f32, color: Color32) {
-    painter.text(pos + Vec2::new(0.45, 0.0), anchor, text, font(size), color);
+    let pixel = 1.0 / painter.pixels_per_point();
+    painter.text(pos + Vec2::new(pixel, 0.0), anchor, text, font(size), color);
     painter.text(pos, anchor, text, font(size), color);
 }
 
