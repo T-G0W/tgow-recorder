@@ -2,6 +2,7 @@
 
 mod app;
 mod app_icon;
+mod backdrop;
 mod gallery;
 mod global;
 mod icons;
@@ -25,13 +26,13 @@ fn stage() -> u32 {
     std::env::var(STAGE).ok().and_then(|s| s.parse().ok()).unwrap_or(0)
 }
 
-fn opaque() -> bool {
-    stage() == 1
+pub fn transparent() -> bool {
+    cfg!(unix) && stage() == 0
 }
 
 #[cfg(windows)]
 fn renderer() -> eframe::Renderer {
-    if stage() >= 2 {
+    if stage() == 0 {
         eframe::Renderer::Wgpu
     } else {
         eframe::Renderer::Glow
@@ -43,7 +44,7 @@ fn renderer() -> eframe::Renderer {
     eframe::Renderer::Glow
 }
 
-const LAST_STAGE: u32 = if cfg!(windows) { 2 } else { 1 };
+const LAST_STAGE: u32 = 1;
 
 fn options(title: &str) -> eframe::NativeOptions {
     let viewport = egui::ViewportBuilder::default()
@@ -51,7 +52,7 @@ fn options(title: &str) -> eframe::NativeOptions {
         .with_app_id("tgow-recorder")
         .with_icon(app_icon::icon())
         .with_fullscreen(true)
-        .with_transparent(!opaque())
+        .with_transparent(transparent())
         .with_decorations(false)
         .with_always_on_top();
     #[cfg(windows)]
@@ -59,16 +60,25 @@ fn options(title: &str) -> eframe::NativeOptions {
         Some(index) => viewport.with_monitor(index).with_taskbar(false),
         None => viewport.with_taskbar(false),
     };
+    #[cfg(windows)]
+    {
+        let mut options = eframe::NativeOptions { viewport, renderer: renderer(), ..Default::default() };
+        options.glow_options.vsync = false;
+        options.wgpu_options.surface.present_mode = eframe::wgpu::PresentMode::AutoNoVsync;
+        options
+    }
+    #[cfg(unix)]
     eframe::NativeOptions { viewport, renderer: renderer(), ..Default::default() }
 }
 
 fn run_overlay(page: Option<String>) -> i32 {
     let pending: app::Pending = Arc::new(Mutex::new(Vec::new()));
     let shared = pending.clone();
+    let shot = if transparent() { None } else { platform::capture_screen() };
     let result = eframe::run_native(
         "TGOW Recorder",
         options("TGOW Recorder"),
-        Box::new(move |cc| Ok(Box::new(app::OverlayApp::new(cc, shared, page.as_deref())))),
+        Box::new(move |cc| Ok(Box::new(app::OverlayApp::new(cc, shared, page.as_deref(), shot)))),
     );
     let _ = ipc::send(&Request::OverlayClosed);
     let queued: Vec<Request> = pending.lock().map(|mut p| p.drain(..).collect()).unwrap_or_default();
@@ -90,10 +100,11 @@ fn run_overlay(page: Option<String>) -> i32 {
 fn run_region_select() -> i32 {
     let result = Arc::new(Mutex::new(None));
     let shared = result.clone();
+    let shot = if transparent() { None } else { platform::capture_screen() };
     let run = eframe::run_native(
         "TGOW Recorder region",
         options("TGOW Recorder region"),
-        Box::new(move |cc| Ok(Box::new(region::RegionApp::new(cc, shared)))),
+        Box::new(move |cc| Ok(Box::new(region::RegionApp::new(cc, shared, shot)))),
     );
     if let Err(err) = run {
         eprintln!("tgow-overlay: {err}");

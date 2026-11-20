@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use eframe::egui::{self, Align2, Color32, CornerRadius, Key, Pos2, Rect, Sense, Stroke, StrokeKind, Vec2};
 use tgow_common::{tr, Config};
 
+use crate::backdrop::{Backdrop, Shot};
 use crate::theme::{self, Theme};
 
 pub struct RegionApp {
@@ -11,15 +12,17 @@ pub struct RegionApp {
     result: Arc<Mutex<Option<String>>>,
     theme: Theme,
     done: bool,
+    backdrop: Backdrop,
 }
 
 impl RegionApp {
-    pub fn new(cc: &eframe::CreationContext<'_>, result: Arc<Mutex<Option<String>>>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, result: Arc<Mutex<Option<String>>>, shot: Option<Shot>) -> Self {
         let config = Config::load();
         tgow_common::i18n::set_language(&config.main.language);
         let theme = Theme::from_config(&config.main);
         theme.apply(&cc.egui_ctx);
-        Self { start: None, current: None, result, theme, done: false }
+        let backdrop = Backdrop::new(&cc.egui_ctx, shot);
+        Self { start: None, current: None, result, theme, done: false, backdrop }
     }
 
     fn selection(&self) -> Option<Rect> {
@@ -48,7 +51,11 @@ impl RegionApp {
 
 impl eframe::App for RegionApp {
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        [0.0, 0.0, 0.0, 0.0]
+        if crate::transparent() {
+            [0.0, 0.0, 0.0, 0.0]
+        } else {
+            [0.0, 0.0, 0.0, 1.0]
+        }
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
@@ -80,6 +87,7 @@ impl eframe::App for RegionApp {
         }
 
         let painter = ui.painter();
+        self.backdrop.paint(painter, screen);
         let dim = Color32::from_rgba_premultiplied(0, 0, 0, 120);
         match self.selection() {
             Some(sel) => {
@@ -117,6 +125,6 @@ impl eframe::App for RegionApp {
             painter.line_segment([Pos2::new(screen.min.x, pos.y), Pos2::new(screen.max.x, pos.y)], guide);
             painter.line_segment([Pos2::new(pos.x, screen.min.y), Pos2::new(pos.x, screen.max.y)], guide);
         }
-        ctx.request_repaint();
+        ctx.request_repaint_after(std::time::Duration::from_millis(16));
     }
 }

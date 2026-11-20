@@ -71,6 +71,73 @@ pub fn monitor_under_cursor() -> Option<usize> {
     }
 }
 
+#[cfg(unix)]
+pub fn capture_screen() -> Option<crate::backdrop::Shot> {
+    None
+}
+
+#[cfg(windows)]
+pub fn capture_screen() -> Option<crate::backdrop::Shot> {
+    use windows::Win32::Foundation::POINT;
+    use windows::Win32::Graphics::Gdi::{
+        BitBlt, CreateCompatibleDC, CreateDIBSection, DeleteDC, DeleteObject, GetDC, GetMonitorInfoW, MonitorFromPoint,
+        ReleaseDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, CAPTUREBLT, DIB_RGB_COLORS, MONITORINFO,
+        MONITOR_DEFAULTTONEAREST, SRCCOPY,
+    };
+    use windows::Win32::UI::HiDpi::{SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2};
+    use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+
+    unsafe {
+        let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+        let mut pt = POINT::default();
+        GetCursorPos(&mut pt).ok()?;
+        let monitor = MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST);
+        let mut info = MONITORINFO { cbSize: std::mem::size_of::<MONITORINFO>() as u32, ..Default::default() };
+        if !GetMonitorInfoW(monitor, &mut info).as_bool() {
+            return None;
+        }
+        let r = info.rcMonitor;
+        let (w, h) = (r.right - r.left, r.bottom - r.top);
+        if w <= 0 || h <= 0 {
+            return None;
+        }
+        let screen = GetDC(None);
+        let memory = CreateCompatibleDC(Some(screen));
+        let header = BITMAPINFO {
+            bmiHeader: BITMAPINFOHEADER {
+                biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                biWidth: w,
+                biHeight: -h,
+                biPlanes: 1,
+                biBitCount: 32,
+                biCompression: BI_RGB.0,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let mut bits = std::ptr::null_mut();
+        let mut shot = None;
+        if let Ok(bitmap) = CreateDIBSection(Some(memory), &header, DIB_RGB_COLORS, &mut bits, None, 0) {
+            let previous = SelectObject(memory, bitmap.into());
+            if BitBlt(memory, 0, 0, w, h, Some(screen), r.left, r.top, SRCCOPY | CAPTUREBLT).is_ok() && !bits.is_null()
+            {
+                let len = (w * h * 4) as usize;
+                let bgra = std::slice::from_raw_parts(bits as *const u8, len);
+                let mut rgba = Vec::with_capacity(len);
+                for px in bgra.as_chunks::<4>().0 {
+                    rgba.extend_from_slice(&[px[2], px[1], px[0], 255]);
+                }
+                shot = Some(crate::backdrop::Shot { width: w as usize, height: h as usize, rgba });
+            }
+            SelectObject(memory, previous);
+            let _ = DeleteObject(bitmap.into());
+        }
+        let _ = DeleteDC(memory);
+        ReleaseDC(None, screen);
+        shot
+    }
+}
+
 pub fn hide_console(cmd: &mut std::process::Command) -> &mut std::process::Command {
     #[cfg(windows)]
     {

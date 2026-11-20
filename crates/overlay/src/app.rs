@@ -7,6 +7,7 @@ use tgow_common::i18n;
 use tgow_common::ipc::{Request, ToastKind};
 use tgow_common::{system, tr, trf, Config};
 
+use crate::backdrop::{Backdrop, Shot};
 use crate::gallery::Gallery;
 use crate::global::{self, GlobalAction, GlobalState};
 use crate::icons;
@@ -57,10 +58,16 @@ pub struct OverlayApp {
     gallery: Gallery,
     pending: Pending,
     closing: bool,
+    backdrop: Backdrop,
 }
 
 impl OverlayApp {
-    pub fn new(cc: &eframe::CreationContext<'_>, pending: Pending, start_page: Option<&str>) -> Self {
+    pub fn new(
+        cc: &eframe::CreationContext<'_>,
+        pending: Pending,
+        start_page: Option<&str>,
+        shot: Option<Shot>,
+    ) -> Self {
         let config = Config::load();
         i18n::set_language(&config.main.language);
         let theme = Theme::from_config(&config.main);
@@ -76,7 +83,9 @@ impl OverlayApp {
             Some("gallery") => Page::Gallery,
             _ => Page::Main,
         };
+        let backdrop = Backdrop::new(&cc.egui_ctx, shot);
         Self {
+            backdrop,
             draft: config.clone(),
             config,
             theme,
@@ -639,7 +648,11 @@ fn page_key(page: Page) -> u8 {
 
 impl eframe::App for OverlayApp {
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        [0.0, 0.0, 0.0, 0.0]
+        if crate::transparent() {
+            [0.0, 0.0, 0.0, 0.0]
+        } else {
+            [0.0, 0.0, 0.0, 1.0]
+        }
     }
 
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
@@ -650,6 +663,7 @@ impl eframe::App for OverlayApp {
         self.sync_theme(&ctx);
 
         let screen = ui.max_rect();
+        self.backdrop.paint(ui.painter(), screen);
         theme::dim_background(ui.painter(), screen, self.theme.dim);
         if self.page != Page::Main {
             theme::dim_background(ui.painter(), screen, 0.35);
