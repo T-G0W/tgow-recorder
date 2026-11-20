@@ -283,7 +283,7 @@ impl Default for MainConfig {
             language: String::new(),
             exclude_metadata: false,
             show_tray_icon: true,
-            overlay_opacity: 0.55,
+            overlay_opacity: 0.45,
             countdown_seconds: 0,
             low_disk_warning_gb: 5,
             play_sounds: false,

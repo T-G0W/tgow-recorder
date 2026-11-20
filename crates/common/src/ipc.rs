@@ -36,6 +36,32 @@ pub enum ToastKind {
     Error,
 }
 
+impl ToastKind {
+    pub const ALL: [ToastKind; 6] = [
+        ToastKind::Info,
+        ToastKind::Record,
+        ToastKind::Replay,
+        ToastKind::Stream,
+        ToastKind::Screenshot,
+        ToastKind::Error,
+    ];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            ToastKind::Info => "info",
+            ToastKind::Record => "record",
+            ToastKind::Replay => "replay",
+            ToastKind::Stream => "stream",
+            ToastKind::Screenshot => "screenshot",
+            ToastKind::Error => "error",
+        }
+    }
+
+    pub fn from_id(id: &str) -> ToastKind {
+        ToastKind::ALL.into_iter().find(|k| k.id() == id).unwrap_or_default()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct ModeStatus {
     pub active: bool,

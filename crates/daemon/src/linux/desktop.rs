@@ -82,3 +82,5 @@ pub fn blink_led() {
         tgow_common::system::set_scroll_lock_led(false);
     });
 }
+
+pub fn allow_foreground() {}

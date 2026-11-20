@@ -8,9 +8,9 @@ pub const SIDE_BUTTON: f32 = 68.0;
 
 pub const TEXT: Color32 = Color32::from_rgb(240, 240, 240);
 pub const TEXT_DIM: Color32 = Color32::from_rgb(160, 160, 165);
-pub const PANEL_FILL: Color32 = Color32::from_rgba_premultiplied(9, 9, 10, 236);
-pub const PANEL_HOVER: Color32 = Color32::from_rgba_premultiplied(24, 24, 26, 242);
-pub const SECTION_FILL: Color32 = Color32::from_rgba_premultiplied(14, 14, 16, 232);
+pub const PANEL_FILL: Color32 = Color32::from_rgba_premultiplied(8, 8, 9, 205);
+pub const PANEL_HOVER: Color32 = Color32::from_rgba_premultiplied(22, 22, 24, 222);
+pub const SECTION_FILL: Color32 = Color32::from_rgba_premultiplied(12, 12, 14, 210);
 pub const FIELD_FILL: Color32 = Color32::from_rgb(38, 38, 42);
 pub const FIELD_HOVER: Color32 = Color32::from_rgb(56, 56, 62);
 pub const DANGER: Color32 = Color32::from_rgb(220, 60, 60);
@@ -115,7 +115,6 @@ pub fn bold_text(painter: &Painter, pos: Pos2, anchor: Align2, text: &str, size:
 }
 
 pub fn dim_background(painter: &Painter, rect: egui::Rect, amount: f32) {
-    let strength = 1.0 - (1.0 - amount.clamp(0.0, 1.0)).powf(2.2);
-    let a = (strength * 255.0).round() as u8;
+    let a = (amount.clamp(0.0, 1.0) * 255.0).round() as u8;
     painter.rect_filled(rect, CornerRadius::ZERO, Color32::from_rgba_premultiplied(0, 0, 0, a));
 }

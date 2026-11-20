@@ -13,6 +13,7 @@ mod settings;
 mod sources;
 mod strings;
 mod theme;
+mod toast;
 mod widgets;
 
 use std::sync::{Arc, Mutex};
@@ -46,6 +47,18 @@ fn renderer() -> eframe::Renderer {
 
 const LAST_STAGE: u32 = 1;
 
+fn finish_options(viewport: egui::ViewportBuilder) -> eframe::NativeOptions {
+    #[cfg(windows)]
+    {
+        let mut options = eframe::NativeOptions { viewport, renderer: renderer(), ..Default::default() };
+        options.glow_options.vsync = false;
+        options.wgpu_options.surface.present_mode = eframe::wgpu::PresentMode::AutoNoVsync;
+        options
+    }
+    #[cfg(unix)]
+    eframe::NativeOptions { viewport, renderer: renderer(), ..Default::default() }
+}
+
 fn options(title: &str) -> eframe::NativeOptions {
     let viewport = egui::ViewportBuilder::default()
         .with_title(title)
@@ -60,15 +73,31 @@ fn options(title: &str) -> eframe::NativeOptions {
         Some(index) => viewport.with_monitor(index).with_taskbar(false),
         None => viewport.with_taskbar(false),
     };
-    #[cfg(windows)]
-    {
-        let mut options = eframe::NativeOptions { viewport, renderer: renderer(), ..Default::default() };
-        options.glow_options.vsync = false;
-        options.wgpu_options.surface.present_mode = eframe::wgpu::PresentMode::AutoNoVsync;
-        options
-    }
-    #[cfg(unix)]
-    eframe::NativeOptions { viewport, renderer: renderer(), ..Default::default() }
+    finish_options(viewport)
+}
+
+fn run_toast(args: &[String]) -> i32 {
+    let at = args.iter().position(|a| a == "--toast").unwrap_or(0);
+    let kind = tgow_common::ipc::ToastKind::from_id(args.get(at + 1).map(String::as_str).unwrap_or("info"));
+    let hold = args.get(at + 2).and_then(|v| v.parse().ok()).unwrap_or(3000);
+    let text = args.get(at + 3..).map(|rest| rest.join(" ")).unwrap_or_default();
+    let viewport = egui::ViewportBuilder::default()
+        .with_title("TGOW Recorder notification")
+        .with_app_id("tgow-recorder")
+        .with_icon(app_icon::icon())
+        .with_inner_size([toast::WIDTH, toast::HEIGHT])
+        .with_position([-32000.0, -32000.0])
+        .with_resizable(false)
+        .with_decorations(false)
+        .with_always_on_top()
+        .with_taskbar(false)
+        .with_active(false);
+    let result = eframe::run_native(
+        "TGOW Recorder notification",
+        finish_options(viewport),
+        Box::new(move |cc| Ok(Box::new(toast::ToastApp::new(cc, kind, text, hold)))),
+    );
+    i32::from(result.is_err())
 }
 
 fn run_overlay(page: Option<String>) -> i32 {
@@ -139,10 +168,12 @@ fn main() {
 }
 
 fn run(args: &[String]) -> i32 {
-    if args.iter().any(|a| a == "--select-region") {
+    if args.iter().any(|a| a == "--toast") {
+        run_toast(args)
+    } else if args.iter().any(|a| a == "--select-region") {
         run_region_select()
     } else if args.iter().any(|a| a == "--help" || a == "-h") {
-        println!("usage: tgow-overlay [--select-region] [--page replay|record|stream|screenshot|settings|gallery]");
+        println!("usage: tgow-overlay [--select-region] [--toast <kind> <ms> <text>] [--page replay|record|stream|screenshot|settings|gallery]");
         0
     } else if args.iter().any(|a| a == "--version") {
         println!("tgow-overlay {}", tgow_common::VERSION);

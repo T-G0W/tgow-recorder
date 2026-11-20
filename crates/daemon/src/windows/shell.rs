@@ -13,15 +13,14 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     RegisterHotKey, UnregisterHotKey, HOT_KEY_MODIFIERS, MOD_ALT, MOD_CONTROL, MOD_NOREPEAT, MOD_SHIFT, MOD_WIN,
 };
 use windows::Win32::UI::Shell::{
-    Shell_NotifyIconW, NIF_ICON, NIF_INFO, NIF_MESSAGE, NIF_TIP, NIIF_ERROR, NIIF_INFO, NIM_ADD, NIM_DELETE,
-    NIM_MODIFY, NOTIFYICONDATAW,
+    Shell_NotifyIconW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NIM_MODIFY, NOTIFYICONDATAW,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreateIcon, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyIcon, DestroyMenu,
-    DispatchMessageW, GetCursorPos, GetMessageW, GetSystemMetrics, KillTimer, PostMessageW, RegisterClassW,
-    RegisterWindowMessageW, SetForegroundWindow, SetTimer, TrackPopupMenu, TranslateMessage, HICON, MF_SEPARATOR,
-    MF_STRING, MSG, SM_CXSMICON, TPM_BOTTOMALIGN, TPM_NONOTIFY, TPM_RETURNCMD, TPM_RIGHTBUTTON, WINDOW_EX_STYLE,
-    WM_APP, WM_CONTEXTMENU, WM_HOTKEY, WM_LBUTTONUP, WM_NULL, WM_RBUTTONUP, WM_TIMER, WNDCLASSW, WS_OVERLAPPED,
+    DispatchMessageW, GetCursorPos, GetMessageW, GetSystemMetrics, PostMessageW, RegisterClassW,
+    RegisterWindowMessageW, SetForegroundWindow, TrackPopupMenu, TranslateMessage, HICON, MF_SEPARATOR, MF_STRING, MSG,
+    SM_CXSMICON, TPM_BOTTOMALIGN, TPM_NONOTIFY, TPM_RETURNCMD, TPM_RIGHTBUTTON, WINDOW_EX_STYLE, WM_APP,
+    WM_CONTEXTMENU, WM_HOTKEY, WM_LBUTTONUP, WM_NULL, WM_RBUTTONUP, WNDCLASSW, WS_OVERLAPPED,
 };
 
 use crate::daemon::Msg;
@@ -30,7 +29,6 @@ use crate::state::{dot_rgba, MenuCommand, MenuEntry, TrayState};
 const WM_COMMANDS: u32 = WM_APP + 1;
 const WM_TRAY: u32 = WM_APP + 2;
 const TRAY_ID: u32 = 1;
-const BALLOON_TIMER: usize = 1;
 
 pub enum Cmd {
     Bind(Sender<Msg>),
@@ -38,7 +36,6 @@ pub enum Cmd {
     TrayState(TrayState),
     Refresh,
     Hotkeys(Vec<(Action, Hotkey)>),
-    Balloon { error: bool, text: String, timeout_ms: u32 },
 }
 
 struct Shell {
@@ -114,7 +111,6 @@ struct State {
     msg_tx: Option<Sender<Msg>>,
     visible: bool,
     added: bool,
-    temporary: bool,
     tray: TrayState,
     icon: Option<HICON>,
     hotkeys: Vec<(i32, Action)>,
@@ -208,7 +204,6 @@ impl State {
             msg_tx: None,
             visible: false,
             added: false,
-            temporary: false,
             tray: TrayState::default(),
             icon: None,
             hotkeys: Vec::new(),
@@ -268,7 +263,6 @@ impl State {
             }
             self.added = false;
         }
-        self.temporary = false;
     }
 
     fn set_hotkeys(&mut self, bindings: Vec<(Action, Hotkey)>) {
@@ -291,28 +285,6 @@ impl State {
         }
     }
 
-    fn balloon(&mut self, error: bool, text: &str, timeout_ms: u32) {
-        if !self.added {
-            self.show_icon();
-            self.temporary = !self.visible;
-        }
-        if !self.added {
-            return;
-        }
-        let mut data = self.data();
-        data.uFlags = NIF_INFO;
-        data.dwInfoFlags = if error { NIIF_ERROR } else { NIIF_INFO };
-        data.Anonymous.uTimeout = timeout_ms;
-        copy_wide(&mut data.szInfo, text);
-        copy_wide(&mut data.szInfoTitle, "TGOW Recorder");
-        unsafe {
-            let _ = Shell_NotifyIconW(NIM_MODIFY, &data);
-            if self.temporary {
-                SetTimer(Some(self.hwnd), BALLOON_TIMER, timeout_ms + 4000, None);
-            }
-        }
-    }
-
     fn drain(&mut self) {
         while let Ok(cmd) = self.rx.try_recv() {
             match cmd {
@@ -320,7 +292,6 @@ impl State {
                 Cmd::TrayVisible(visible) => {
                     self.visible = visible;
                     if visible {
-                        self.temporary = false;
                         self.show_icon();
                     } else {
                         self.hide_icon();
@@ -339,17 +310,7 @@ impl State {
                     }
                 }
                 Cmd::Hotkeys(bindings) => self.set_hotkeys(bindings),
-                Cmd::Balloon { error, text, timeout_ms } => self.balloon(error, &text, timeout_ms),
             }
-        }
-    }
-
-    fn timer(&mut self) {
-        unsafe {
-            let _ = KillTimer(Some(self.hwnd), BALLOON_TIMER);
-        }
-        if self.temporary && !self.visible {
-            self.hide_icon();
         }
     }
 
@@ -436,10 +397,6 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                     s.send(Msg::Action(*action));
                 }
             });
-            LRESULT(0)
-        }
-        WM_TIMER if wparam.0 == BALLOON_TIMER => {
-            with_state(|s| s.timer());
             LRESULT(0)
         }
         m if m != 0 && m == TASKBAR_CREATED.load(Ordering::Relaxed) => {

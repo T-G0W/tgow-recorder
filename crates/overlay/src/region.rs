@@ -13,6 +13,7 @@ pub struct RegionApp {
     theme: Theme,
     done: bool,
     backdrop: Backdrop,
+    focused: bool,
 }
 
 impl RegionApp {
@@ -22,7 +23,7 @@ impl RegionApp {
         let theme = Theme::from_config(&config.main);
         theme.apply(&cc.egui_ctx);
         let backdrop = Backdrop::new(&cc.egui_ctx, shot);
-        Self { start: None, current: None, result, theme, done: false, backdrop }
+        Self { start: None, current: None, result, theme, done: false, backdrop, focused: false }
     }
 
     fn selection(&self) -> Option<Rect> {
@@ -58,8 +59,12 @@ impl eframe::App for RegionApp {
         }
     }
 
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        if !self.focused {
+            self.focused = true;
+            crate::platform::bring_to_front(frame);
+        }
         let screen = ui.max_rect();
         let response = ui.interact(screen, ui.scope_id().with("region"), Sense::drag());
         ctx.set_cursor_icon(egui::CursorIcon::Crosshair);

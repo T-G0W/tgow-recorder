@@ -417,6 +417,7 @@ impl Daemon {
                 return;
             }
         }
+        desktop::allow_foreground();
         match quiet(&mut Command::new(paths::sibling_binary("tgow-overlay"))).stdin(Stdio::null()).spawn() {
             Ok(child) => self.overlay = Some(child),
             Err(err) => eprintln!("tgow-recorder: could not start the overlay: {err}"),
@@ -461,6 +462,7 @@ impl Daemon {
             return Ok(());
         }
         self.broadcast(&Event::Close);
+        desktop::allow_foreground();
         let child = quiet(&mut Command::new(paths::sibling_binary("tgow-overlay")))
             .arg("--select-region")
             .stdin(Stdio::null())
@@ -929,7 +931,7 @@ impl Daemon {
     }
 
     fn toast(&mut self, kind: ToastKind, text: &str, notify: bool, path: Option<String>) {
-        if notify {
+        if notify && !self.overlay_covers_toasts() {
             let timeout = match self.cfg.main.notification_speed {
                 NotificationSpeed::Normal => 3000,
                 NotificationSpeed::Fast => 1500,
@@ -938,6 +940,10 @@ impl Daemon {
             self.notifier.send(kind, text, timeout);
         }
         self.broadcast(&Event::Toast { kind, text: text.to_string(), path });
+    }
+
+    fn overlay_covers_toasts(&self) -> bool {
+        cfg!(windows) && self.overlay.is_some()
     }
 
     fn broadcast(&mut self, event: &Event) {
@@ -1010,7 +1016,9 @@ impl Daemon {
                     cd.remaining -= 1;
                     cd.next += Duration::from_secs(1);
                     let text = trf("Starting in %s", &[&n.to_string()]);
-                    self.notifier.send(ToastKind::Record, &text, 900);
+                    if !self.overlay_covers_toasts() {
+                        self.notifier.send(ToastKind::Record, &text, 900);
+                    }
                     self.broadcast(&Event::Toast { kind: ToastKind::Record, text, path: None });
                 }
             }

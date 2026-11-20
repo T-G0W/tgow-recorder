@@ -105,7 +105,7 @@ impl Gallery {
         self.confirm_delete = None;
     }
 
-    pub fn ui(&mut self, ui: &mut Ui, theme: &Theme, config: &Config, free_space: Option<u64>) {
+    pub fn ui(&mut self, ui: &mut Ui, theme: &Theme, config: &Config, free_space: Option<u64>) -> bool {
         if !self.loaded {
             self.reload(config);
         }
@@ -117,7 +117,9 @@ impl Gallery {
                 (Some(Kind::Screenshot), Kind::Screenshot.label()),
             ] {
                 let selected = self.filter == filter;
-                let (rect, response) = ui.allocate_exact_size(Vec2::new(150.0, 38.0), Sense::click());
+                let text_width = ui.painter().layout_no_wrap(label.clone(), theme::font(16.0), theme::TEXT).size().x;
+                let (rect, response) =
+                    ui.allocate_exact_size(Vec2::new((text_width + 36.0).max(96.0), 38.0), Sense::click());
                 let fill = if selected {
                     theme.accent.gamma_multiply(0.85)
                 } else if response.hovered() {
@@ -138,9 +140,11 @@ impl Gallery {
                 let free =
                     free_space.or_else(|| paths::free_space_bytes(&paths::expand_tilde(&config.record.save_directory)));
                 if let Some(bytes) = free {
-                    ui.label(
-                        RichText::new(trf("Free space: %s", &[&system::human_bytes(bytes)])).color(theme::TEXT_DIM),
-                    );
+                    let text = trf("Free space: %s", &[&system::human_bytes(bytes)]);
+                    let needed = ui.painter().layout_no_wrap(text.clone(), theme::font(14.0), theme::TEXT).size().x;
+                    if ui.available_width() > needed + 12.0 {
+                        ui.label(RichText::new(text).color(theme::TEXT_DIM).size(14.0));
+                    }
                 }
             });
         });
@@ -159,10 +163,11 @@ impl Gallery {
             ui.vertical_centered(|ui| {
                 ui.label(RichText::new(tr("No recordings yet")).color(theme::TEXT_DIM).size(20.0));
             });
-            return;
+            return false;
         }
 
         let mut delete = None;
+        let mut close = false;
         for index in visible {
             let entry = &self.entries[index];
             let (rect, response) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 64.0), Sense::hover());
@@ -221,9 +226,11 @@ impl Gallery {
                 }
                 if button(tr("Open folder"), 150.0, false) {
                     system::reveal_path(&entry.path);
+                    close = true;
                 }
                 if button(tr("Open"), 100.0, false) {
                     system::open_path(&entry.path);
+                    close = true;
                 }
             }
             ui.add_space(6.0);
@@ -236,5 +243,6 @@ impl Gallery {
             }
             self.confirm_delete = None;
         }
+        close
     }
 }

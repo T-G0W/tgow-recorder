@@ -59,6 +59,7 @@ pub struct OverlayApp {
     pending: Pending,
     closing: bool,
     backdrop: Backdrop,
+    focused: bool,
 }
 
 impl OverlayApp {
@@ -86,6 +87,7 @@ impl OverlayApp {
         let backdrop = Backdrop::new(&cc.egui_ctx, shot);
         Self {
             backdrop,
+            focused: false,
             draft: config.clone(),
             config,
             theme,
@@ -154,7 +156,7 @@ impl OverlayApp {
     fn top_bar(&mut self, ui: &mut Ui, ctx: &egui::Context, screen: Rect) {
         let bar = Rect::from_min_size(screen.min, Vec2::new(screen.width(), TOP_BAR_HEIGHT));
         let painter = ui.painter();
-        painter.rect_filled(bar, CornerRadius::ZERO, Color32::from_rgba_premultiplied(6, 6, 7, 245));
+        painter.rect_filled(bar, CornerRadius::ZERO, Color32::from_rgba_premultiplied(6, 6, 7, 215));
         icons::logo(
             painter,
             Rect::from_center_size(Pos2::new(bar.left() + 34.0, bar.center().y), Vec2::splat(42.0)),
@@ -554,6 +556,7 @@ impl OverlayApp {
         let status = self.link.read(|s| s.status.clone());
         let sources = self.sources.lock().map(|s| s.clone()).unwrap_or_default();
         let mut global_action = GlobalAction::None;
+        let mut close_after = false;
         ui.scope_builder(UiBuilder::new().max_rect(content_rect), |ui| {
             ScrollArea::vertical().id_salt(("page", page_key(self.page))).auto_shrink([false, false]).show(ui, |ui| {
                 ui.set_width(content_rect.width() - 16.0);
@@ -569,7 +572,9 @@ impl OverlayApp {
                     }
                     Page::Gallery => {
                         let config = self.config.clone();
-                        self.gallery.ui(ui, &self.theme, &config, status.free_space_bytes);
+                        if self.gallery.ui(ui, &self.theme, &config, status.free_space_bytes) {
+                            close_after = true;
+                        }
                     }
                     Page::Main => {}
                 }
@@ -584,6 +589,9 @@ impl OverlayApp {
                 self.close(ctx);
             }
             GlobalAction::None => {}
+        }
+        if close_after {
+            self.close(ctx);
         }
     }
 
@@ -655,8 +663,12 @@ impl eframe::App for OverlayApp {
         }
     }
 
-    fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut Ui, frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        if !self.focused {
+            self.focused = true;
+            crate::platform::bring_to_front(frame);
+        }
         if self.link.read(|s| s.close) {
             self.close(&ctx);
         }
@@ -666,7 +678,7 @@ impl eframe::App for OverlayApp {
         self.backdrop.paint(ui.painter(), screen);
         theme::dim_background(ui.painter(), screen, self.theme.dim);
         if self.page != Page::Main {
-            theme::dim_background(ui.painter(), screen, 0.35);
+            theme::dim_background(ui.painter(), screen, 0.25);
         }
 
         self.top_bar(ui, &ctx, screen);

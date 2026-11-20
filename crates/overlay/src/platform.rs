@@ -138,6 +138,73 @@ pub fn capture_screen() -> Option<crate::backdrop::Shot> {
     }
 }
 
+#[cfg(unix)]
+pub fn bring_to_front(_frame: &eframe::Frame) {}
+
+#[cfg(windows)]
+pub fn bring_to_front(frame: &eframe::Frame) {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::Input::KeyboardAndMouse::SetFocus;
+    use windows::Win32::UI::WindowsAndMessaging::{BringWindowToTop, SetForegroundWindow};
+
+    let Ok(handle) = frame.window_handle() else { return };
+    let RawWindowHandle::Win32(raw) = handle.as_raw() else { return };
+    let hwnd = HWND(raw.hwnd.get() as *mut _);
+    unsafe {
+        let _ = BringWindowToTop(hwnd);
+        let _ = SetForegroundWindow(hwnd);
+        let _ = SetFocus(Some(hwnd));
+    }
+}
+
+#[cfg(unix)]
+pub fn place_toast(_frame: &eframe::Frame, _hidden: f32, _first: bool) {}
+
+#[cfg(windows)]
+pub fn place_toast(frame: &eframe::Frame, hidden: f32, first: bool) {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    use windows::Win32::Foundation::{HWND, POINT, RECT};
+    use windows::Win32::Graphics::Gdi::{
+        CreateRoundRectRgn, GetMonitorInfoW, MonitorFromPoint, SetWindowRgn, MONITORINFO, MONITOR_DEFAULTTOPRIMARY,
+    };
+    use windows::Win32::UI::HiDpi::GetDpiForWindow;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetWindowLongPtrW, GetWindowRect, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, HWND_TOPMOST, SWP_NOACTIVATE,
+        SWP_NOSIZE, SWP_SHOWWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
+    };
+
+    let Ok(handle) = frame.window_handle() else { return };
+    let RawWindowHandle::Win32(raw) = handle.as_raw() else { return };
+    let hwnd = HWND(raw.hwnd.get() as *mut _);
+    unsafe {
+        let mut rect = RECT::default();
+        if GetWindowRect(hwnd, &mut rect).is_err() {
+            return;
+        }
+        let (w, h) = (rect.right - rect.left, rect.bottom - rect.top);
+        let scale = GetDpiForWindow(hwnd).max(96) as f32 / 96.0;
+        if first {
+            let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+            let extra = (WS_EX_NOACTIVATE.0 | WS_EX_TOOLWINDOW.0 | WS_EX_TOPMOST.0) as isize;
+            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style | extra);
+            let monitor = MonitorFromPoint(POINT { x: 0, y: 0 }, MONITOR_DEFAULTTOPRIMARY);
+            let mut info = MONITORINFO { cbSize: std::mem::size_of::<MONITORINFO>() as u32, ..Default::default() };
+            if GetMonitorInfoW(monitor, &mut info).as_bool() {
+                let margin = (24.0 * scale).round() as i32;
+                let x = info.rcWork.right - w - margin;
+                let y = info.rcWork.top + margin;
+                let _ =
+                    SetWindowPos(hwnd, Some(HWND_TOPMOST), x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+            }
+        }
+        let left = ((hidden.clamp(0.0, 1.0)) * w as f32).round() as i32;
+        let r = (crate::toast::RADIUS * 2.0 * scale).round() as i32;
+        let region = CreateRoundRectRgn(left, 0, w + 1, h + 1, r, r);
+        SetWindowRgn(hwnd, Some(region), true);
+    }
+}
+
 pub fn hide_console(cmd: &mut std::process::Command) -> &mut std::process::Command {
     #[cfg(windows)]
     {

@@ -33,7 +33,10 @@ pub fn page(ui: &mut Ui, theme: &Theme, config: &mut Config, state: &mut GlobalS
                 (AccentPreset::Custom, "Custom", main.accent_rgb),
             ] {
                 let selected = main.accent == preset;
-                let (rect, response) = ui.allocate_exact_size(Vec2::new(120.0, 40.0), Sense::click());
+                let text = tr(label);
+                let text_width = ui.painter().layout_no_wrap(text.clone(), theme::font(15.0), theme::TEXT).size().x;
+                let width = (text_width + 52.0).max(120.0);
+                let (rect, response) = ui.allocate_exact_size(Vec2::new(width, 40.0), Sense::click());
                 let color = Color32::from_rgb(rgb[0], rgb[1], rgb[2]);
                 ui.painter().rect_filled(rect, theme.radius(6), theme::FIELD_FILL);
                 ui.painter().rect_filled(
@@ -44,7 +47,7 @@ pub fn page(ui: &mut Ui, theme: &Theme, config: &mut Config, state: &mut GlobalS
                 ui.painter().text(
                     rect.left_center() + Vec2::new(36.0, 0.0),
                     Align2::LEFT_CENTER,
-                    tr(label),
+                    text,
                     theme::font(15.0),
                     theme::TEXT,
                 );
