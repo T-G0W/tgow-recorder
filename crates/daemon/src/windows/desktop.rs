@@ -15,6 +15,14 @@ const RUN_KEY: PCWSTR = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Run");
 const RUN_VALUE: PCWSTR = w!("TGOW Recorder");
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
+pub fn autostart_enabled() -> bool {
+    use windows::Win32::System::Registry::{RegGetValueW, RRF_RT_REG_SZ};
+    unsafe {
+        let mut size = 0u32;
+        RegGetValueW(HKEY_CURRENT_USER, RUN_KEY, RUN_VALUE, RRF_RT_REG_SZ, None, None, Some(&mut size)).is_ok()
+    }
+}
+
 pub fn set_autostart(enabled: bool) -> std::io::Result<()> {
     unsafe {
         if !enabled {

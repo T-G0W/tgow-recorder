@@ -12,6 +12,10 @@ fn autostart_file() -> PathBuf {
     base.join("autostart").join("tgow-recorder.desktop")
 }
 
+pub fn autostart_enabled() -> bool {
+    autostart_file().is_file()
+}
+
 pub fn set_autostart(enabled: bool) -> std::io::Result<()> {
     let file = autostart_file();
     if !enabled {

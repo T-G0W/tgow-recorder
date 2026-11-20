@@ -10,6 +10,7 @@ mod platform;
 mod server;
 mod state;
 mod strings;
+mod update;
 #[cfg(windows)]
 mod windows;
 

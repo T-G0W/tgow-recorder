@@ -15,7 +15,7 @@ impl Notifier {
         Self { current: Arc::new(Mutex::new(None)) }
     }
 
-    pub fn send(&self, kind: ToastKind, text: &str, timeout_ms: i32) {
+    pub fn close(&self) {
         let Ok(mut current) = self.current.lock() else { return };
         if let Some(mut old) = current.take() {
             if matches!(old.try_wait(), Ok(None)) {
@@ -23,6 +23,11 @@ impl Notifier {
             }
             let _ = old.wait();
         }
+    }
+
+    pub fn send(&self, kind: ToastKind, text: &str, timeout_ms: i32) {
+        self.close();
+        let Ok(mut current) = self.current.lock() else { return };
         let child = Command::new(paths::sibling_binary("tgow-overlay"))
             .arg("--toast")
             .arg(kind.id())

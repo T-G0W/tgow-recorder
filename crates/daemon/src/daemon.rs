@@ -20,7 +20,7 @@ use crate::platform::notify::Notifier;
 use crate::platform::tray::Tray;
 use crate::platform::{controller, desktop};
 use crate::state::TrayState;
-use crate::{games, server};
+use crate::{games, server, update};
 
 static TERMINATE: AtomicBool = AtomicBool::new(false);
 
@@ -76,6 +76,7 @@ pub enum Msg {
         id: u64,
     },
     Game(Option<String>),
+    Update(update::Found),
     #[cfg(windows)]
     Notice(String),
     Quit,
@@ -170,6 +171,10 @@ pub struct Daemon {
     wayland: bool,
     game: Option<String>,
     replay_for_game: bool,
+    updates: Arc<AtomicBool>,
+    update_ready: Option<update::Ready>,
+    update_noticed: Option<String>,
+    apply_update: Option<update::Ready>,
     quit: bool,
 }
 
@@ -177,6 +182,14 @@ pub fn run(show: bool) -> anyhow::Result<()> {
     if ipc::daemon_running() {
         let _ = ipc::send(&Request::Run { action: Action::ShowHide });
         return Ok(());
+    }
+    let mut cfg = Config::load();
+    if cfg.main.auto_update {
+        if let Some(ready) = update::pending() {
+            if update::apply(&ready) {
+                return Ok(());
+            }
+        }
     }
     let listener = server::bind()?;
     trim_log();
@@ -186,7 +199,11 @@ pub fn run(show: bool) -> anyhow::Result<()> {
     let controller = Arc::new(AtomicBool::new(false));
     controller::spawn(controller.clone(), tx.clone());
 
-    let cfg = Config::load();
+    let autostart = desktop::autostart_enabled();
+    if autostart != cfg.main.start_on_login {
+        cfg.main.start_on_login = autostart;
+        let _ = cfg.save();
+    }
     let mut daemon = Daemon {
         tx: tx.clone(),
         cfg: cfg.clone(),
@@ -214,10 +231,19 @@ pub fn run(show: bool) -> anyhow::Result<()> {
         wayland: system::is_wayland(),
         game: None,
         replay_for_game: false,
+        updates: Arc::new(AtomicBool::new(cfg.main.auto_update)),
+        update_ready: None,
+        update_noticed: None,
+        apply_update: None,
         quit: false,
     };
     games::spawn(tx.clone());
+    update::spawn(tx.clone(), daemon.updates.clone());
     daemon.apply_config(None);
+    if let Some(version) = update::take_finished() {
+        let text = trf("TGOW Recorder was updated to %s", &[&version]);
+        daemon.toast(ToastKind::Info, &text, true, None);
+    }
     daemon.autostart_replay();
     if show {
         daemon.show_hide();
@@ -225,6 +251,11 @@ pub fn run(show: bool) -> anyhow::Result<()> {
     daemon.main_loop(rx);
     daemon.shutdown();
     ipc::unbind();
+    if let Some(ready) = daemon.apply_update.take() {
+        if !update::apply(&ready) {
+            log_line("tgow-recorder: could not install the update");
+        }
+    }
     Ok(())
 }
 
@@ -270,6 +301,7 @@ impl Daemon {
                 }
             }
             Msg::Game(game) => self.game_changed(game),
+            Msg::Update(found) => self.update_found(found),
             #[cfg(windows)]
             Msg::Notice(text) => self.toast(ToastKind::Error, &text, true, None),
             Msg::Quit => self.quit = true,
@@ -942,6 +974,42 @@ impl Daemon {
         self.broadcast(&Event::Toast { kind, text: text.to_string(), path });
     }
 
+    fn update_found(&mut self, found: update::Found) {
+        match found {
+            update::Found::Available(version) => {
+                if self.update_noticed.as_deref() != Some(version.as_str()) {
+                    let text = trf("TGOW Recorder %s is available at %s", &[&version, update::RELEASES_PAGE]);
+                    self.toast(ToastKind::Info, &text, true, None);
+                    self.update_noticed = Some(version);
+                }
+            }
+            update::Found::Ready(ready) => self.update_ready = Some(ready),
+        }
+    }
+
+    fn idle(&self) -> bool {
+        self.replay.is_none()
+            && self.record.is_none()
+            && self.stream.is_none()
+            && self.shot.is_none()
+            && self.countdown.is_none()
+            && self.overlay.is_none()
+            && !self.region_pending
+    }
+
+    fn try_update(&mut self) {
+        if self.update_ready.is_none() || !self.cfg.main.auto_update || !self.idle() {
+            return;
+        }
+        let Some(ready) = self.update_ready.take() else { return };
+        if cfg!(unix) {
+            let text = trf("Updating TGOW Recorder to %s", &[&ready.version]);
+            self.toast(ToastKind::Info, &text, true, None);
+        }
+        self.apply_update = Some(ready);
+        self.quit = true;
+    }
+
     fn overlay_covers_toasts(&self) -> bool {
         cfg!(windows) && self.overlay.is_some()
     }
@@ -1004,6 +1072,7 @@ impl Daemon {
     }
 
     fn tick(&mut self) {
+        self.try_update();
         if let Some(cd) = self.countdown.as_mut() {
             if Instant::now() >= cd.next {
                 if cd.remaining == 0 {
@@ -1091,6 +1160,7 @@ impl Daemon {
                 self.hotkeys.apply(&self.cfg.main, &self.tx);
             }
             self.controller.store(self.cfg.main.controller_hotkeys, Ordering::Relaxed);
+            self.updates.store(self.cfg.main.auto_update, Ordering::Relaxed);
             self.tray.set_visible(self.cfg.main.show_tray_icon, &self.tx);
             self.tray.refresh();
         }
@@ -1206,6 +1276,9 @@ impl Daemon {
         }
         system::set_scroll_lock_led(false);
         self.tray.set_visible(false, &self.tx);
+        if self.apply_update.is_some() {
+            self.notifier.close();
+        }
     }
 }
 

@@ -9,6 +9,7 @@ The first release, for Windows 10 and 11 and for Linux.
 - Hardware encoding with NVENC, AMF, Quick Sync, VA-API and Vulkan Video; H264, HEVC, AV1, VP8 and VP9
 - Several audio tracks, each mixing devices and single applications
 - Game detection for Steam, Proton, Epic, GOG, Xbox and Wine games
-- Keyboard and controller hotkeys, system tray, notifications and autostart
+- Keyboard and controller hotkeys, system tray, notifications at the top right and autostart
+- Automatic updates from GitHub, checked against their SHA-256 checksum and installed while nothing is being recorded
 - English and German
 - Windows setup and portable ZIP, Linux packages for Arch Linux and Ubuntu and an archive with an install script for every other distribution

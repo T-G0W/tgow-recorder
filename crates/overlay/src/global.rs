@@ -84,6 +84,17 @@ pub fn page(ui: &mut Ui, theme: &Theme, config: &mut Config, state: &mut GlobalS
         ui.checkbox(&mut main.show_tray_icon, tr("Show system tray icon"));
     });
 
+    section(ui, theme, &tr("Updates"), |ui| {
+        ui.checkbox(&mut main.auto_update, tr("Install updates automatically"));
+        ui.label(
+            RichText::new(tr("Updates are downloaded from GitHub and installed when nothing is being recorded."))
+                .color(theme::TEXT_DIM),
+        );
+        ui.label(
+            RichText::new(tgow_common::trf("Installed version: %s", &[tgow_common::VERSION])).color(theme::TEXT_DIM),
+        );
+    });
+
     section(ui, theme, &tr("Keyboard hotkeys"), |ui| {
         widgets::labeled_combo(
             ui,

@@ -27,6 +27,8 @@ fn icon_for(kind: ToastKind) -> &'static str {
 }
 
 impl Notifier {
+    pub fn close(&self) {}
+
     pub fn start() -> Self {
         let (tx, rx) = mpsc::channel::<Note>();
         std::thread::Builder::new()

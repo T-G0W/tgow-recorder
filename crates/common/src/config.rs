@@ -267,6 +267,7 @@ pub struct MainConfig {
     pub countdown_seconds: u32,
     pub low_disk_warning_gb: u32,
     pub play_sounds: bool,
+    pub auto_update: bool,
 }
 
 impl Default for MainConfig {
@@ -287,6 +288,7 @@ impl Default for MainConfig {
             countdown_seconds: 0,
             low_disk_warning_gb: 5,
             play_sounds: false,
+            auto_update: true,
         }
     }
 }

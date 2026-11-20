@@ -46,31 +46,6 @@ pub fn local_stamp(secs: u64) -> Stamp {
     }
 }
 
-#[cfg(windows)]
-pub fn monitor_under_cursor() -> Option<usize> {
-    use windows::core::BOOL;
-    use windows::Win32::Foundation::{LPARAM, POINT, RECT};
-    use windows::Win32::Graphics::Gdi::{
-        EnumDisplayMonitors, MonitorFromPoint, HDC, HMONITOR, MONITOR_DEFAULTTONEAREST,
-    };
-    use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
-
-    unsafe extern "system" fn collect(monitor: HMONITOR, _: HDC, _: *mut RECT, data: LPARAM) -> BOOL {
-        let list = unsafe { &mut *(data.0 as *mut Vec<isize>) };
-        list.push(monitor.0 as isize);
-        BOOL(1)
-    }
-
-    let mut list: Vec<isize> = Vec::new();
-    unsafe {
-        let mut pt = POINT::default();
-        GetCursorPos(&mut pt).ok()?;
-        let target = MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST);
-        let _ = EnumDisplayMonitors(None, None, Some(collect), LPARAM(&mut list as *mut Vec<isize> as isize));
-        list.iter().position(|m| *m == target.0 as isize)
-    }
-}
-
 #[cfg(unix)]
 pub fn capture_screen() -> Option<crate::backdrop::Shot> {
     None
@@ -144,14 +119,33 @@ pub fn bring_to_front(_frame: &eframe::Frame) {}
 #[cfg(windows)]
 pub fn bring_to_front(frame: &eframe::Frame) {
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-    use windows::Win32::Foundation::HWND;
+    use windows::Win32::Foundation::{HWND, POINT};
+    use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromPoint, MONITORINFO, MONITOR_DEFAULTTONEAREST};
     use windows::Win32::UI::Input::KeyboardAndMouse::SetFocus;
-    use windows::Win32::UI::WindowsAndMessaging::{BringWindowToTop, SetForegroundWindow};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        BringWindowToTop, GetCursorPos, SetForegroundWindow, SetWindowPos, HWND_TOPMOST, SWP_SHOWWINDOW,
+    };
 
     let Ok(handle) = frame.window_handle() else { return };
     let RawWindowHandle::Win32(raw) = handle.as_raw() else { return };
     let hwnd = HWND(raw.hwnd.get() as *mut _);
     unsafe {
+        let mut pt = POINT::default();
+        let _ = GetCursorPos(&mut pt);
+        let monitor = MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST);
+        let mut info = MONITORINFO { cbSize: std::mem::size_of::<MONITORINFO>() as u32, ..Default::default() };
+        if GetMonitorInfoW(monitor, &mut info).as_bool() {
+            let r = info.rcMonitor;
+            let _ = SetWindowPos(
+                hwnd,
+                Some(HWND_TOPMOST),
+                r.left,
+                r.top,
+                r.right - r.left,
+                r.bottom - r.top,
+                SWP_SHOWWINDOW,
+            );
+        }
         let _ = BringWindowToTop(hwnd);
         let _ = SetForegroundWindow(hwnd);
         let _ = SetFocus(Some(hwnd));

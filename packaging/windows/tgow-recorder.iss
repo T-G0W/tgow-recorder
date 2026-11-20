@@ -24,7 +24,7 @@ LicenseFile=@ROOT@\LICENSE-MIT
 WizardStyle=modern
 Compression=lzma2/ultra64
 SolidCompression=yes
-CloseApplications=yes
+CloseApplications=force
 RestartApplications=no
 ChangesAssociations=no
 
@@ -58,12 +58,42 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 
 [Run]
 Filename: "{app}\tgow-recorder.exe"; Parameters: "--show"; Description: "{cm:LaunchNow}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\tgow-recorder.exe"; Flags: nowait; Check: UpdateMode
 
 [UninstallRun]
 Filename: "{app}\tgow-recorder.exe"; Parameters: "ctl quit"; Flags: runhidden waituntilterminated skipifdoesntexist; RunOnceId: "StopRecorder"
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /T /IM tgow-recorder.exe"; Flags: runhidden waituntilterminated; RunOnceId: "KillDaemon"
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM tgow-overlay.exe"; Flags: runhidden waituntilterminated; RunOnceId: "KillOverlay"
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM tgow-rec.exe"; Flags: runhidden waituntilterminated; RunOnceId: "KillRecorder"
+Filename: "{sys}\reg.exe"; Parameters: "delete ""HKCU\Software\Microsoft\Windows\CurrentVersion\Run"" /v ""TGOW Recorder"" /f"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveAutostart"
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{localappdata}\T-GOW\tgow-recorder\replay"
+
+[Code]
+function UpdateMode: Boolean;
+begin
+  Result := ExpandConstant('{param:update|0}') = '1';
+end;
+
+procedure StopProgram(Name: String);
+var
+  Code: Integer;
+begin
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM ' + Name, '', SW_HIDE, ewWaitUntilTerminated, Code);
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  Code: Integer;
+  Daemon: String;
+begin
+  Daemon := ExpandConstant('{app}\tgow-recorder.exe');
+  if FileExists(Daemon) then
+    Exec(Daemon, 'ctl quit', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  StopProgram('tgow-overlay.exe');
+  StopProgram('tgow-rec.exe');
+  StopProgram('tgow-recorder.exe');
+  Sleep(500);
+  Result := '';
+end;

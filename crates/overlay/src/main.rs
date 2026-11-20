@@ -64,15 +64,17 @@ fn options(title: &str) -> eframe::NativeOptions {
         .with_title(title)
         .with_app_id("tgow-recorder")
         .with_icon(app_icon::icon())
-        .with_fullscreen(true)
         .with_transparent(transparent())
         .with_decorations(false)
         .with_always_on_top();
     #[cfg(windows)]
-    let viewport = match platform::monitor_under_cursor() {
-        Some(index) => viewport.with_monitor(index).with_taskbar(false),
-        None => viewport.with_taskbar(false),
-    };
+    let viewport = viewport
+        .with_position([-32000.0, -32000.0])
+        .with_inner_size([1280.0, 720.0])
+        .with_resizable(false)
+        .with_taskbar(false);
+    #[cfg(unix)]
+    let viewport = viewport.with_fullscreen(true);
     finish_options(viewport)
 }
 

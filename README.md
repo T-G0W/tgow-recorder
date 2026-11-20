@@ -148,7 +148,8 @@ Every screenshot is the real app, captured from a release build.
 - **Instant replay:** 2 seconds to 24 hours, in RAM or on disk, save the whole buffer or the last 30 seconds, 1, 5 or 10 minutes, restart on save.
 - **Games:** detects Steam, Proton, Epic, GOG, Xbox and Wine games, names and sorts clips after them and can turn replay on while one runs.
 - **Hotkeys:** keyboard hotkeys that work in fullscreen games, controller combos with the Home button, and a command for every action to bind in your own tools.
-- **Everyday comfort:** system tray, start with the system, notifications, a countdown before recording, a microphone mute hotkey, a low disk space warning and the Scroll Lock light as a status indicator.
+- **Everyday comfort:** system tray, start with the system, notifications at the top right, a countdown before recording, a microphone mute hotkey, a low disk space warning and the Scroll Lock light as a status indicator.
+- **Automatic updates:** new versions are downloaded from GitHub, checked against their SHA-256 checksum and installed while nothing is being recorded. The `.deb` and pacman packages show a notice instead and update through your package manager.
 
 <br>
 
@@ -277,7 +278,7 @@ Pushing a tag such as `v0.1.0` builds the Windows setup, the portable ZIP, the L
 
 ## Privacy
 
-TGOW Recorder sends no telemetry and needs no account. It never goes online by itself; only a livestream you start sends your picture and sound to the service you picked. Recordings stay on your computer.
+TGOW Recorder sends no telemetry and needs no account. The only thing it does online by itself is look for a new version on GitHub every six hours, which sends nothing about you or your recordings; turn it off under **Settings › Updates**. A livestream you start sends your picture and sound to the service you picked, and recordings stay on your computer.
 
 <br>
 
