@@ -179,6 +179,7 @@ pub fn run(show: bool) -> anyhow::Result<()> {
         return Ok(());
     }
     let listener = server::bind()?;
+    trim_log();
     install_signals();
     let (tx, rx) = mpsc::channel();
     server::serve(listener, tx.clone());
@@ -667,12 +668,20 @@ impl Daemon {
             .args(&argv)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
+            .stderr(Stdio::piped())
             .spawn()?;
         let id = self.next_id;
         self.next_id += 1;
         let stdout = child.stdout.take();
         let stdin = child.stdin.take();
+        if let Some(err) = child.stderr.take() {
+            std::thread::Builder::new().name(format!("rec-{id}-log")).spawn(move || {
+                for line in BufReader::new(err).lines() {
+                    let Ok(line) = line else { break };
+                    log_line(&line);
+                }
+            })?;
+        }
         let tx = self.tx.clone();
         std::thread::Builder::new().name(format!("rec-{id}")).spawn(move || {
             if let Some(out) = stdout {
@@ -684,7 +693,7 @@ impl Daemon {
                                 return;
                             }
                         }
-                        None => eprintln!("{line}"),
+                        None => log_line(&line),
                     }
                 }
             }
@@ -695,7 +704,7 @@ impl Daemon {
 
     fn spawn_session(&mut self, source: &str, argv: Vec<String>) -> Result<Session, String> {
         let (id, child, stdin) = self.spawn_recorder(argv).map_err(|err| {
-            eprintln!("tgow-recorder: could not start the recorder: {err}");
+            log_line(&format!("tgow-recorder: could not start the recorder: {err}"));
             tr("Failed to launch the recorder")
         })?;
         Ok(Session {
@@ -1204,5 +1213,23 @@ fn make_parent(path: &Path) -> Result<(), String> {
     match path.parent() {
         Some(dir) => paths::ensure_dir(dir).map_err(|_| tr("Failed to create the save directory")),
         None => Ok(()),
+    }
+}
+
+pub fn log_line(line: &str) {
+    eprintln!("{line}");
+    let path = paths::log_file();
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        let _ = writeln!(file, "{} {line}", system::now_local().file_stamp());
+    }
+}
+
+pub fn trim_log() {
+    let path = paths::log_file();
+    if std::fs::metadata(&path).map(|m| m.len() > 1_000_000).unwrap_or(false) {
+        let _ = std::fs::remove_file(&path);
     }
 }

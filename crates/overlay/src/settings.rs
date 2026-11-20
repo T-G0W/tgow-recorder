@@ -48,7 +48,8 @@ pub fn page(ui: &mut Ui, theme: &Theme, config: &mut Config, mode: Mode, sources
 }
 
 fn source_options(sources: &Sources, current: &str, allow_window: bool) -> Vec<(String, String)> {
-    let mut options = vec![("focused_monitor".to_string(), tr("Focused monitor"))];
+    let main = if cfg!(windows) { tr("Main monitor") } else { tr("Focused monitor") };
+    let mut options = vec![("focused_monitor".to_string(), main)];
     for m in &sources.monitors {
         options
             .push((m.name.clone(), trf("Monitor %s (%dx%d)", &[&m.name, &m.width.to_string(), &m.height.to_string()])));
@@ -58,7 +59,9 @@ fn source_options(sources: &Sources, current: &str, allow_window: bool) -> Vec<(
         options.push(("focused".to_string(), tr("Follow focused window")));
     }
     options.push(("region".to_string(), tr("Region")));
-    options.push(("portal".to_string(), tr("Desktop portal")));
+    if !cfg!(windows) {
+        options.push(("portal".to_string(), tr("Desktop portal")));
+    }
     if !options.iter().any(|(id, _)| id == current) {
         options.push((current.to_string(), current.to_string()));
     }

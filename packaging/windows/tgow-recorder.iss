@@ -61,6 +61,9 @@ Filename: "{app}\tgow-recorder.exe"; Parameters: "--show"; Description: "{cm:Lau
 
 [UninstallRun]
 Filename: "{app}\tgow-recorder.exe"; Parameters: "ctl quit"; Flags: runhidden waituntilterminated skipifdoesntexist; RunOnceId: "StopRecorder"
+Filename: "{sys}\taskkill.exe"; Parameters: "/F /T /IM tgow-recorder.exe"; Flags: runhidden waituntilterminated; RunOnceId: "KillDaemon"
+Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM tgow-overlay.exe"; Flags: runhidden waituntilterminated; RunOnceId: "KillOverlay"
+Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM tgow-rec.exe"; Flags: runhidden waituntilterminated; RunOnceId: "KillRecorder"
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{localappdata}\T-GOW\tgow-recorder\replay"

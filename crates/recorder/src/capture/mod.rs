@@ -68,8 +68,7 @@ type Started = (std::thread::JoinHandle<()>, String);
 #[cfg(windows)]
 fn platform_start(source: &str, opts: &Options, slot: Arc<FrameSlot>, stop: Arc<AtomicBool>) -> Result<Started> {
     let target = match source {
-        "screen" | "screen-direct" => dxgi::Target::FirstMonitor,
-        "focused_monitor" | "" | "portal" => dxgi::Target::FocusedMonitor,
+        "screen" | "screen-direct" | "focused_monitor" | "" | "portal" => dxgi::Target::PrimaryMonitor,
         "focused" | "window" => dxgi::Target::FocusedWindow,
         "region" => match &opts.region {
             Some(r) => dxgi::Target::Area(r.x, r.y, r.width, r.height),

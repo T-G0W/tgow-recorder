@@ -13,7 +13,8 @@ pub fn target_name(source: &str) -> &'static str {
     match source {
         "window" | "focused" => "window",
         "region" => "region",
-        "portal" => "portal",
+        "portal" if !cfg!(windows) => "portal",
+        _ if cfg!(windows) => "the main monitor",
         _ => "this monitor",
     }
 }

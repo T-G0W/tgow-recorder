@@ -36,6 +36,10 @@ pub fn replay_cache_dir() -> PathBuf {
     platform::cache_base().join(APP_ID).join("replay")
 }
 
+pub fn log_file() -> PathBuf {
+    platform::cache_base().join(APP_ID).join("tgow-recorder.log")
+}
+
 pub fn videos_dir() -> PathBuf {
     platform::videos_dir()
 }

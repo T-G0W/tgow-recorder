@@ -31,8 +31,7 @@ use crate::frame::{Frame, FrameSlot, PixFmt};
 
 #[derive(Debug, Clone)]
 pub enum Target {
-    FirstMonitor,
-    FocusedMonitor,
+    PrimaryMonitor,
     Monitor(String),
     Area(i32, i32, u32, u32),
     FocusedWindow,
@@ -143,15 +142,16 @@ fn pick(list: Vec<Output>, target: &Target) -> Result<(Output, Crop)> {
         first.ok_or_else(|| anyhow!("no monitor found"))
     };
     match target {
-        Target::FirstMonitor => Ok((list.into_iter().next().ok_or_else(|| anyhow!("no monitor found"))?, None)),
-        Target::FocusedMonitor => Ok((at(cursor.x, cursor.y, list)?, None)),
+        Target::PrimaryMonitor => Ok((at(0, 0, list)?, None)),
         Target::Monitor(name) => {
             let wanted = name.trim_start_matches("\\\\.\\").to_string();
-            let o = list
-                .into_iter()
-                .find(|o| o.info.name.eq_ignore_ascii_case(&wanted))
-                .ok_or_else(|| anyhow!("monitor \"{name}\" was not found"))?;
-            Ok((o, None))
+            if list.iter().any(|o| o.info.name.eq_ignore_ascii_case(&wanted)) {
+                let o = list.into_iter().find(|o| o.info.name.eq_ignore_ascii_case(&wanted)).unwrap();
+                Ok((o, None))
+            } else {
+                crate::report::warning(&format!("monitor \"{name}\" was not found, using the main monitor"));
+                Ok((at(0, 0, list)?, None))
+            }
         }
         Target::Area(x, y, w, h) => {
             let o = at(*x, *y, list)?;
@@ -521,6 +521,7 @@ pub fn spawn(
         let mut last_crop = crop;
         let mut pending = false;
         let mut next = Instant::now();
+        let mut blank_since = Instant::now();
         while !stop.load(Ordering::SeqCst) {
             if follow && last_follow.elapsed() > Duration::from_millis(250) {
                 last_follow = Instant::now();
@@ -531,6 +532,7 @@ pub fn spawn(
                                 dup = d;
                                 out = o;
                                 last_frame = None;
+                                blank_since = Instant::now();
                             }
                         }
                         crop = c;
@@ -556,11 +558,19 @@ pub fn spawn(
                             crop = c;
                             dup = d;
                             last_frame = None;
+                            blank_since = Instant::now();
                         }
                         continue;
                     }
                     slot.close(format!("screen capture failed: {e:#}"));
                     return;
+                }
+            }
+            if last_frame.is_none() && blank_since.elapsed() > Duration::from_millis(300) {
+                blank_since = Instant::now();
+                if let Ok(Some(f)) = Gdi::open(&out).and_then(|mut g| g.grab(0)) {
+                    last_frame = Some(f);
+                    fresh = true;
                 }
             }
             if cursor {

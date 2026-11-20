@@ -77,7 +77,12 @@ pub fn run(args: &[String]) -> i32 {
             eprintln!("tgow-recorder: {message}");
             1
         }
-        Ok(_) => 0,
+        Ok(_) => {
+            if matches!(request, Request::Quit) {
+                wait_for_exit();
+            }
+            0
+        }
         Err(err) => {
             if err.kind() == std::io::ErrorKind::NotFound || err.kind() == std::io::ErrorKind::ConnectionRefused {
                 eprintln!("tgow-recorder: the daemon is not running, start it with `tgow-recorder`");
@@ -87,4 +92,12 @@ pub fn run(args: &[String]) -> i32 {
             1
         }
     }
+}
+
+fn wait_for_exit() {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while ipc::daemon_running() && std::time::Instant::now() < deadline {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    std::thread::sleep(std::time::Duration::from_millis(800));
 }

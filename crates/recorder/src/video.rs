@@ -153,6 +153,28 @@ fn native_backend() -> Backend {
     }
 }
 
+#[cfg(unix)]
+fn other_backends(first: Backend) -> Vec<Backend> {
+    let native = native_backend();
+    if native != first {
+        vec![native]
+    } else {
+        Vec::new()
+    }
+}
+
+#[cfg(windows)]
+fn other_backends(first: Backend) -> Vec<Backend> {
+    let vendors = tgow_common::platform::gpu_vendors();
+    let mut out = Vec::new();
+    for (vendor, backend) in [("nvidia", Backend::Nvenc), ("intel", Backend::Qsv), ("amd", Backend::Amf)] {
+        if backend != first && vendors.contains(&vendor) && !out.contains(&backend) {
+            out.push(backend);
+        }
+    }
+    out
+}
+
 #[cfg(windows)]
 fn native_backend() -> Backend {
     match tgow_common::system::gpu_vendor().as_str() {
@@ -163,12 +185,13 @@ fn native_backend() -> Backend {
     }
 }
 
-fn cpu_h264() -> &'static str {
-    if ff::encoder::find_by_name("libx264").is_some() {
-        "libx264"
-    } else {
-        "h264_mf"
+const CPU_H264: [&str; 3] = ["libx264", "libopenh264", "h264_mf"];
+
+fn encoder_names(codec: Codec, backend: Backend) -> Vec<&'static str> {
+    if backend == Backend::Cpu && matches!(codec, Codec::H264 | Codec::Auto) {
+        return CPU_H264.into_iter().filter(|n| ff::encoder::find_by_name(n).is_some()).collect();
     }
+    encoder_name(codec, backend).into_iter().collect()
 }
 
 fn encoder_name(codec: Codec, backend: Backend) -> Option<&'static str> {
@@ -192,7 +215,7 @@ fn encoder_name(codec: Codec, backend: Backend) -> Option<&'static str> {
         (Backend::Vulkan, Codec::H264) => "h264_vulkan",
         (Backend::Vulkan, Codec::Hevc) => "hevc_vulkan",
         (Backend::Vulkan, Codec::Av1) => "av1_vulkan",
-        (Backend::Cpu, Codec::H264) => cpu_h264(),
+        (Backend::Cpu, Codec::H264) => "libx264",
         (Backend::Cpu, Codec::Vp8) => "libvpx",
         (Backend::Cpu, Codec::Vp9) => "libvpx-vp9",
         _ => return None,
@@ -288,35 +311,50 @@ impl VideoEncoder {
     pub fn open(setup: &Setup) -> Result<VideoEncoder> {
         let opts = setup.opts;
         let first = pick_backend(opts);
-        match Self::open_with(setup, first, opts.codec) {
+        match Self::open_backend(setup, first, opts.codec) {
             Ok(e) => Ok(e),
             Err(err) => {
                 let codec = if opts.codec == Codec::Auto { Codec::H264 } else { opts.codec };
                 if first != Backend::Cpu && matches!(codec, Codec::Vp8 | Codec::Vp9) {
                     report::warning(&format!("{err:#}, falling back to the cpu encoder"));
-                    return Self::open_with(setup, Backend::Cpu, codec);
+                    return Self::open_backend(setup, Backend::Cpu, codec);
                 }
-                if first == Backend::Vulkan {
-                    report::warning(&format!("{err:#}, trying the regular gpu encoder"));
-                    let alt = native_backend();
-                    if let Ok(e) = Self::open_with(setup, alt, opts.codec) {
-                        return Ok(e);
+                let explicit = opts.gpu_api.is_some() || opts.vulkan || opts.cpu_encoder;
+                if first == Backend::Vulkan || !explicit {
+                    for alt in other_backends(first) {
+                        report::warning(&format!("{err:#}, trying {}", alt.label()));
+                        if let Ok(e) = Self::open_backend(setup, alt, opts.codec) {
+                            return Ok(e);
+                        }
                     }
                 }
-                if opts.fallback_cpu && first != Backend::Cpu {
+                if (opts.fallback_cpu || cfg!(windows) && !explicit) && first != Backend::Cpu {
                     report::warning(&format!("{err:#}, falling back to cpu encoding"));
-                    return Self::open_with(setup, Backend::Cpu, Codec::H264);
+                    return Self::open_backend(setup, Backend::Cpu, Codec::H264);
                 }
                 Err(err)
             }
         }
     }
 
-    fn open_with(setup: &Setup, backend: Backend, codec: Codec) -> Result<VideoEncoder> {
-        let opts = setup.opts;
+    fn open_backend(setup: &Setup, backend: Backend, codec: Codec) -> Result<VideoEncoder> {
         let codec = if codec == Codec::Auto { Codec::H264 } else { codec };
-        let name = encoder_name(codec, backend)
-            .ok_or_else(|| anyhow!("{:?} can't be encoded with {}", codec, backend.label()))?;
+        let names = encoder_names(codec, backend);
+        let mut last = anyhow!("{:?} can't be encoded with {}", codec, backend.label());
+        for name in names {
+            match Self::open_with(setup, backend, codec, name) {
+                Ok(e) => return Ok(e),
+                Err(e) => {
+                    report::info(&format!("{e:#}"));
+                    last = e;
+                }
+            }
+        }
+        Err(last)
+    }
+
+    fn open_with(setup: &Setup, backend: Backend, codec: Codec, name: &'static str) -> Result<VideoEncoder> {
+        let opts = setup.opts;
         let ff_codec = ff::encoder::find_by_name(name).ok_or_else(|| anyhow!("FFmpeg has no {name} encoder"))?;
 
         let (width, height) = fit_size(setup.src_w, setup.src_h, opts.size_limit);
@@ -326,7 +364,7 @@ impl VideoEncoder {
         } else {
             opts.depth
         };
-        let yuv444 = opts.yuv444 && matches!(backend, Backend::Nvenc | Backend::Cpu) && codec == Codec::H264
+        let yuv444 = opts.yuv444 && (backend == Backend::Nvenc || name == "libx264") && codec == Codec::H264
             || opts.yuv444 && backend == Backend::Nvenc && codec == Codec::Hevc;
         if opts.yuv444 && !yuv444 {
             report::warning("yuv444 isn't available for this codec, using yuv420");
@@ -398,8 +436,9 @@ impl VideoEncoder {
                         }
                     }
                     Backend::Vulkan => dict.set("rc_mode", if cbr { "cbr" } else { "vbr" }),
+                    Backend::Cpu if name == "libopenh264" => dict.set("rc_mode", "bitrate"),
                     Backend::Cpu => {
-                        if cbr && codec == Codec::H264 {
+                        if cbr && name == "libx264" {
                             dict.set("nal-hrd", "cbr");
                         }
                     }
@@ -431,6 +470,10 @@ impl VideoEncoder {
                             (*enc.as_mut_ptr()).flags |= ffi::AV_CODEC_FLAG_QSCALE as i32;
                         }
                         enc.set_global_quality((qp * ffi::FF_QP2LAMBDA as i64) as i32);
+                    }
+                    Backend::Cpu if name == "libopenh264" => {
+                        enc.set_bit_rate(bitrate_kbps as usize * 1000);
+                        dict.set("rc_mode", "quality");
                     }
                     Backend::Cpu if name == "h264_mf" => {
                         dict.set("quality", &(100 - qp * 2).clamp(10, 100).to_string());
@@ -473,6 +516,9 @@ impl VideoEncoder {
                 dict.set("async_depth", "4");
             }
             Backend::Cpu => match codec {
+                Codec::H264 if name == "libopenh264" => {
+                    dict.set("allow_skip_frames", "0");
+                }
                 Codec::H264 if name == "h264_mf" => {
                     dict.set("rate_control", if rate_mode == RateMode::Cbr { "cbr" } else { "quality" });
                     dict.set("scenario", "display_remoting");
